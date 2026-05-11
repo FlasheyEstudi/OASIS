@@ -1,0 +1,363 @@
+revisa api manual y dime si todo esta correcto osea revisa todo el backend y dime si esta funcional 
+
+Te pongo en los zapatos de 100 dueños de clínica, 100 pacientes, 100 dueños de farmacia y 100 repartidores. Reviso cada rincón del plan y te digo sin filtro lo que falta, lo que sobra y lo que necesita evolucionar. Después te entrego la versión mejorada al 100 % con todo integrado.
+
+---
+
+## 👂 Lo que gritan los usuarios (críticas y vacíos)
+
+### 🏥 Dueño de clínica (100 voces)
+- **“No tengo reportes de ingresos, ni por médico, ni por servicio. ¿Cómo sé si el negocio es rentable?”**
+- **“Mis doctores trabajan en varias sucursales. Yo necesito manejar una misma clínica con múltiples sedes y que el paciente elija la más cercana.”**
+- **“Las recetas médicas deben tener firma digital y cumplir con regulaciones sanitarias. Si no, no sirven en muchas farmacias.”**
+- **“Quiero que los pacientes puedan pagar la consulta en línea al reservar. Sin pasarela de pago integrada, pierdo citas.”**
+- **“Necesito teleconsulta. Los pacientes piden videollamada, no solo cita presencial.”**
+- **“Falta un panel de auditoría: quién modificó qué, cuándo.”**
+- **“¿Y si un doctor se enferma? No hay forma de reasignar sus citas en masa.”**
+- **“Mis recepcionistas no tienen un rol; ellos agendan citas, cobran, confirman. El plan solo habla de doctores y admin.”**
+- **“No hay gestión de convenios con aseguradoras. Mis pacientes preguntan si aceptamos su seguro.”**
+
+### 🧍 Paciente (100 voces)
+- **“Yo tengo alergias crónicas. Si el doctor me receta algo que me hace mal, la app debería alertarle a él y a mí.”**
+- **“Tengo a mi mamá y a mi hijo. Necesito un perfil familiar para pedir citas y medicamentos para ellos.”**
+- **“No quiero buscar farmacia cada vez. Que la app me recuerde cuándo debo reabastecer y me sugiera repetir el pedido con un clic.”**
+- **“Falta un chat con el doctor o la farmacia. A veces la receta tiene un error y tengo que llamar.”**
+- **“Vivo en una zona rural, quiero ver si la farmacia hace envíos a mi código postal antes de ilusionarme.”**
+- **“Mis medicamentos son controlados. La farmacia debe pedirme identificación y la receta original. Sin eso, no me pueden vender.”**
+- **“¿Dónde califico al doctor? Yo diferencio entre el médico y la clínica.”**
+- **“Quiero pagar con mi seguro. Que la app me calcule el copago.”**
+- **“Si tengo una emergencia, un botón de pánico que muestre mi historial y medicamentos actuales a un contacto.”**
+
+### 💊 Dueño de farmacia (100 voces)
+- **“No puedo manejar medicamentos por lote y fecha de caducidad. Si vendo uno vencido, cierro el negocio.”**
+- **“Tengo 3 sucursales. El inventario debe ser centralizado y compartido, con visibilidad de stock entre ellas.”**
+- **“Necesito generar órdenes de compra a proveedores cuando el stock baja del mínimo.”**
+- **“Manejo medicamentos controlados (psicotrópicos). El sistema debe exigir receta retenida y validar cédula del paciente.”**
+- **“Quiero ver cuáles productos son más rentables y quiénes son mis mejores clientes para darles descuentos.”**
+- **“Falta devoluciones. Un cliente puede rechazar un pedido. Necesito gestionar ese proceso e indicar si el producto vuelve al inventario.”**
+- **“Los repartidores internos deben marcar asistencia y tener un horario. No solo asignarles pedidos manualmente.”**
+- **“No hay conciliación de caja. Si el repartidor cobra en efectivo, ¿cómo registro ese ingreso? La factura debe reflejar el método de pago.”**
+- **“Faltan promociones avanzadas: 2x1, descuentos por lealtad, cupones.”**
+
+### 🛵 Repartidor (100 voces)
+- **“No veo cuánto gano por pedido ni mis comisiones. No sé si me conviene aceptar.”**
+- **“Muestren la ruta óptima en el mapa. Yo solo recibo un pedido, pero sin integración de mapas, pierdo tiempo.”**
+- **“Si el cliente no está, necesito un botón de ‘intento fallido’ y opción para dejar en un punto seguro o reprogramar.”**
+- **“Que me permitan subir foto del paquete entregado y firma digital.”**
+- **“Tengo vehículo y quiero registrar placa, tipo (moto, bici) para que la farmacia sepa si acepto pedidos grandes.”**
+- **“Soy externo. Debo poder configurar mi disponibilidad horaria y zonas donde trabajo.”**
+- **“Quiero calificación de los clientes hacia mí. Eso me da reputación y consigo más pedidos.”**
+- **“Si tengo que cobrar en efectivo, la app debe confirmar el monto exacto y avisarme si el cliente pagó con tarjeta.”**
+
+---
+
+## 🔧 Plan Backend Mejorado (cubriendo todas las voces)
+
+Te entrego la estructura expandida, con nuevos módulos, endpoints y lógicas que resuelven cada crítica. Lo que ya estaba se mantiene y se complementa.
+
+---
+
+### 1. Roles y permisos actualizados
+
+- **Superadmin**
+- **Clinic Admin** – maneja una o varias sedes.
+- **Receptionist** (nuevo) – agenda citas, cobra, confirma pagos.
+- **Doctor**
+- **Patient**
+- **Pharmacy Admin** – maneja una o varias sucursales, puede configurar cadena.
+- **Pharmacy Staff** (vendedor/cajero)
+- **Delivery Person** – interno (empleado) o externo (freelance), con perfil de vehículo y disponibilidad.
+- **Insurance Agent** (opcional) – rol para validar coberturas (puede ser automático).
+
+---
+
+### 2. Modelo de datos ampliado (solo lo nuevo o modificado)
+
+#### Clinics
+- Agregar `parent_clinic_id` (para cadena de clínicas).
+- `settings`: telemedicine_enabled, payment_gateway_config, currency.
+
+#### Doctors
+- Agregar `digital_signature_cert` (firma electrónica).
+- `schedule` ahora incluye disponibilidad para teleconsulta/presencial.
+
+#### Patients
+- Agregar `family_group_id` (para agrupar familiares), `insurance_provider`, `insurance_policy_number`.
+- `allergies` (array de alérgenos), `chronic_conditions`.
+- `emergency_contact` (JSON: nombre, teléfono, parentesco).
+
+#### Prescriptions
+- Agregar `digital_signature` (string hash), `is_controlled` (bool), requiere validación extra.
+- `valid_until` (fecha caducidad receta).
+- `refills_remaining` (recetas recurrentes).
+
+#### Medications
+- Agregar `requires_prescription` (bool), `controlled_substance` (bool), `interaction_groups` (para chequeo cruzado).
+
+#### Pharmacy Inventory
+- Agregar `batch_number`, `expiry_date`, `supplier_id`.
+- `min_stock_alert`, `max_stock`.
+- `pharmacy_branch_id` (si es cadena).
+
+#### Pharmacy
+- Agregar `parent_pharmacy_id` (cadena de farmacias).
+- `delivery_settings`: external_enabled, internal_enabled, delivery_zones (códigos postales), max_delivery_distance.
+- `payment_methods`: cash, card_online, card_on_delivery, insurance.
+
+#### Orders
+- Agregar `payment_method`, `payment_status`, `insurance_claim_id`.
+- `delivery_notes`, `failed_delivery_attempts`.
+- `tip_amount`, `delivery_fee`.
+
+#### Delivery Person
+- Nuevo modelo: `id, user_id, vehicle_type, plate_number, availability_schedule (JSON), zones (códigos postales), rating, is_verified, id_document, earnings_balance, active`.
+
+#### Delivery
+- Agregar `route_optimized` (Polyline), `proof_photo_url`, `signature_url`, `cash_collected_amount`.
+
+#### Chats (nuevo)
+- `id, participants (patient_id, doctor_id/clinic_staff), created_at`
+- Messages: `id, chat_id, sender_id, message, attachment, read, created_at`
+
+#### Loyalty Points (para pacientes)
+- `patient_id, pharmacy_id (opcional, general), points, level`
+
+#### Insurance (nuevo)
+- `id, patient_id, provider, policy_number, coverage_details, copay_percentage`
+
+#### Supplier Orders (farmacia)
+- `id, pharmacy_branch_id, supplier_id, items (medication_id, quantity), status, created_at`
+
+---
+
+### 3. Nuevos módulos de API (se suman a los anteriores, que permanecen)
+
+#### 🏥 Módulo de Cadena de Clínicas
+- `POST /api/clinics/:id/branches` – crear sucursal
+- `GET /api/clinics/:id/branches`
+- `PUT /api/clinics/branches/:branchId`
+- `GET /api/clinics/:id/reports/revenue?from=&to=&groupBy=doctor|service` – reporte financiero
+- `GET /api/clinics/:id/audit-logs` (quién hizo qué)
+
+#### 👩‍⚕️ Recepcionista
+- `POST /api/clinics/:id/receptionists` (admin crea usuario con rol receptionist)
+- `GET /api/receptionist/appointments?date=&status=`
+- `POST /api/receptionist/appointments` (agendar para patient)
+- `PUT /api/receptionist/appointments/:id/confirm`
+- `POST /api/receptionist/appointments/:id/checkin` (marca llegada)
+- `POST /api/receptionist/payments/collect` (registra pago de consulta, genera factura)
+- `POST /api/receptionist/assign-doctor` (reasignar citas masivamente si doctor se ausenta)
+
+#### 🩺 Teleconsulta
+- `POST /api/appointments/:id/start-teleconsult` (genera enlace de videollamada, usando API externa como Zoom/Jitsi)
+- `GET /api/appointments/:id/teleconsult-link` (link para paciente y doctor)
+
+#### 🔐 Firma digital y validez de receta
+- Endpoint de firma: `POST /api/doctor/prescriptions/:id/sign` (requiere certificado digital, almacena hash)
+- Al buscar medicamento con receta controlada, la farmacia verifica con `GET /api/prescriptions/:id/verify?patient_id=&code=` (código único de receta)
+
+#### 🧪 Seguridad clínica (interacciones y alergias)
+- Al crear receta, backend ejecuta `POST /api/clinical-check/interactions` con lista de medicamentos y patient_id.
+  - Cruza allergens del paciente y grupos de interacción.
+  - Devuelve warnings (alergias, interacciones graves). El doctor debe confirmar o modificar.
+
+#### 👨‍👩‍👧‍👦 Paciente Familiar
+- `POST /api/patient/family-members` – agregar dependiente (debe existir o se registra)
+- `GET /api/patient/family-members`
+- `PUT /api/patient/family-members/:memberId`
+- Cambiar contexto: header `X-Family-Member-ID` para actuar en nombre del familiar (pedir cita, medicamentos, etc.)
+
+#### 📲 Chat
+- `POST /api/chats` (inicia conversación con doctor/farmacia)
+- `GET /api/chats`
+- `POST /api/chats/:id/messages`
+- `GET /api/chats/:id/messages`
+- Notificaciones push en tiempo real vía WebSocket o FCM.
+
+#### 💊 Receta recurrente y reabastecimiento
+- `POST /api/patient/prescriptions/:id/request-refill` (si quedan refills, notifica al doctor para aprobación automática o manual)
+- `GET /api/patient/refill-reminders` (próximos vencimientos de stock)
+
+#### 💰 Lealtad (Puntos)
+- `GET /api/patient/loyalty` (puntos acumulados, nivel)
+- Al completar pedido, se suman puntos automáticos.
+
+#### 🏥 Seguros y Copagos
+- `POST /api/patient/insurance` (agregar póliza)
+- Al solicitar servicio o comprar, `GET /api/insurance/estimate?service_type=&clinic_id=&medication_ids=` devuelve copago.
+- Integración con API de aseguradora para verificar cobertura (simulada o real).
+
+#### 🌐 Farmacia Cadena
+- `POST /api/pharmacies/:id/branches`
+- `GET /api/pharmacies/:id/branches`
+- Inventario central: `GET /api/pharmacies/:id/inventory?include_branches=true`
+- Al buscar medicamentos, se considera stock en todas las sucursales cercanas (con distancia).
+- Transferencia de stock entre sucursales: `POST /api/pharmacies/branches/transfer-stock`
+
+#### 🧾 Inventario Avanzado (Lotes, Caducidad)
+- Modelo nuevo: InventoryBatch. Al añadir inventario se registra batch.
+- `GET /api/pharmacy/inventory/expiring?days=30` – alerta caducidades
+- Al vender, se descuenta del lote más próximo a caducar (FEFO).
+
+#### 📊 Analytics Farmacia
+- `GET /api/pharmacies/:id/reports/sales?from=&to=&groupBy=product|category`
+- `GET /api/pharmacies/:id/reports/top-customers`
+- `GET /api/pharmacies/:id/reports/stock-value`
+
+#### 🚚 Proveedores y Órdenes de Compra
+- `GET /api/pharmacy/suppliers`
+- `POST /api/pharmacy/suppliers`
+- `POST /api/pharmacy/purchase-orders` (genera orden a proveedor basado en min_stock)
+- `PUT /api/pharmacy/purchase-orders/:id/receive` (recibe mercancía, actualiza inventario por lotes)
+
+#### 💰 Pagos y Métodos
+- `POST /api/payments/process` (pasarela para tarjeta, seguro, efectivo)
+- En pedidos: `payment_method`, si es cash on delivery, repartidor confirma cobro: `PUT /api/delivery/order/:orderId/collect-cash` (amount)
+
+#### 🔁 Devoluciones y Reembolsos
+- `POST /api/orders/:id/return` (paciente solicita devolución)
+- `PUT /api/pharmacy/returns/:id/approve` – farmacia reingresa stock si apto, emite nota de crédito.
+
+#### 🛵 Delivery Avanzado
+- `POST /api/delivery/register` (ya existente, ahora con datos de vehículo, zona, horario)
+- `PUT /api/delivery/availability` (activa/desactiva jornada)
+- `GET /api/delivery/earnings?from=&to=`
+- `POST /api/delivery/order/:orderId/proof` – subir foto y firma
+- `POST /api/delivery/order/:orderId/failed-delivery` (intento fallido, causa)
+- Ruta óptima: al aceptar pedido, backend calcula ruta con Google Maps/Distance Matrix y devuelve polyline.
+- `GET /api/delivery/route/:orderId`
+
+#### ⭐ Ratings y Reputación
+- `POST /api/reviews` – ahora permite calificar doctor, farmacia, repartidor, clínica como entidades separadas.
+- Los repartidores externos muestran rating en perfil.
+
+#### 🆘 Botón de Emergencia (Paciente)
+- `POST /api/patient/emergency` – envía SMS/WhatsApp al contacto de emergencia con ubicación y lista de medicamentos actuales.
+
+---
+
+### 4. Seguridad y cumplimento
+
+- **Audit Logs**: Todas las acciones sensibles (crear receta, modificar inventario, ver historial) registran `user_id, action, entity, entity_id, old_values, new_values, timestamp`.
+- **Receta controlada**: Validación de cédula del paciente al dispensar. Endpoint de doble factor para farmacia.
+- **Firma electrónica**: Almacenamiento de hash en receta, verificación por autoridades. Compatible con estándares (PDF417, QR con token).
+
+---
+
+### 5. Notificaciones y Recordatorios mejorados
+
+- Job de recordatorio de toma de medicamento con confirmación del paciente (si no confirma, avisa al contacto de emergencia).
+- Aviso de caducidad de receta (paciente y doctor).
+- Notificación de cita pendiente, con opción de reagendar.
+- Alerta de stock bajo para admin farmacia y generación automática de Purchase Order sugerida.
+
+---
+
+### 6. Integraciones externas
+
+- **WhatsApp Business API**: envío de facturas, recordatorios, códigos de verificación.
+- **Google Maps / Distance Matrix**: cálculo de rutas, distancia, tiempos estimados.
+- **Pasarela de pago**: Stripe/PayPal/Local. Webhook para confirmar pago y liberar orden.
+- **Videollamada**: Jitsi/Zoom SDK (mejor embebido).
+- **API de seguro** (simulada) para verificación de cobertura.
+
+---
+
+## 📋 Estructura final de Endpoints (checklist ampliada con lo nuevo)
+
+Agrego solo los nuevos endpoints (los anteriores se mantienen, muchos se modifican):
+
+### Clinics & Receptionist
+71. POST /api/clinics/:id/branches
+72. GET /api/clinics/:id/branches
+73. PUT /api/clinics/branches/:branchId
+74. GET /api/clinics/:id/reports/revenue
+75. GET /api/clinics/:id/audit-logs
+76. POST /api/clinics/:id/receptionists
+77. GET /api/receptionist/appointments
+78. POST /api/receptionist/appointments
+79. PUT /api/receptionist/appointments/:id/confirm
+80. POST /api/receptionist/appointments/:id/checkin
+81. POST /api/receptionist/payments/collect
+82. POST /api/receptionist/assign-doctor
+
+### Teleconsulta
+83. POST /api/appointments/:id/start-teleconsult
+84. GET /api/appointments/:id/teleconsult-link
+
+### Seguridad Receta
+85. POST /api/doctor/prescriptions/:id/sign
+86. GET /api/prescriptions/:id/verify
+87. POST /api/clinical-check/interactions
+
+### Paciente Familiar
+88. POST /api/patient/family-members
+89. GET /api/patient/family-members
+90. PUT /api/patient/family-members/:memberId
+
+### Chat
+91. POST /api/chats
+92. GET /api/chats
+93. POST /api/chats/:id/messages
+94. GET /api/chats/:id/messages
+
+### Refill y Recordatorio
+95. POST /api/patient/prescriptions/:id/request-refill
+96. GET /api/patient/refill-reminders
+
+### Lealtad
+97. GET /api/patient/loyalty
+
+### Seguros
+98. POST /api/patient/insurance
+99. GET /api/insurance/estimate
+
+### Farmacia Cadena
+100. POST /api/pharmacies/:id/branches
+101. GET /api/pharmacies/:id/branches
+102. GET /api/pharmacies/:id/inventory?include_branches=true
+103. POST /api/pharmacies/branches/transfer-stock
+
+### Inventario Lotes
+104. GET /api/pharmacy/inventory/expiring?days=
+105. (Modificar POST/PUT inventory para aceptar batch)
+
+### Reportes Farmacia
+106. GET /api/pharmacies/:id/reports/sales
+107. GET /api/pharmacies/:id/reports/top-customers
+108. GET /api/pharmacies/:id/reports/stock-value
+
+### Proveedores
+109. GET /api/pharmacy/suppliers
+110. POST /api/pharmacy/suppliers
+111. POST /api/pharmacy/purchase-orders
+112. PUT /api/pharmacy/purchase-orders/:id/receive
+
+### Pagos y Cobros
+113. POST /api/payments/process
+114. PUT /api/delivery/order/:orderId/collect-cash
+
+### Devoluciones
+115. POST /api/orders/:id/return
+116. PUT /api/pharmacy/returns/:id/approve
+
+### Delivery Optimizado
+117. PUT /api/delivery/availability
+118. GET /api/delivery/earnings
+119. POST /api/delivery/order/:orderId/proof
+120. POST /api/delivery/order/:orderId/failed-delivery
+121. GET /api/delivery/route/:orderId
+
+### Emergencia
+122. POST /api/patient/emergency
+
+### Ratings extendidos
+123. POST /api/reviews (target_type extendido a doctor, delivery_person)
+
+---
+
+Este plan revisado cierra todas las brechas identificadas desde los cuatro frentes. Incluye funciones críticas como firma digital, control de alérgenos, cadena de farmacias, logística de reparto real, seguros, lealtad y comunicación directa. Ahora sí puedes presentar esto a tu desarrollador backend con la seguridad de que el 100% de la operación está considerada.
+
+
+
+busca si estan todos los endpoint delte, put, get y post revisa api manual tambien
