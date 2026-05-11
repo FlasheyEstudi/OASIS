@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50');
   const search = searchParams.get('search') || '';
   const category = searchParams.get('category') || '';
+  const filter = searchParams.get('filter') || '';
+  const days = parseInt(searchParams.get('days') || '30');
   const skip = (page - 1) * limit;
 
   const pharmacyId = await getUserPharmacyId(auth.user.id, auth.user.role);
@@ -60,17 +62,34 @@ export async function GET(request: NextRequest) {
     where.pharmacyId = pharmacyId;
   }
 
-  if (search || category) {
-    where.medication = {
-      OR: [
-        { name: { contains: search } },
-        { genericName: { contains: search } },
-        { brand: { contains: search } },
-      ],
-    };
-    if (category && category !== 'Todos') {
-      where.medication.category = { contains: category };
-    }
+  // Apply filters
+  if (filter === 'lowStock') {
+    where.quantity = { lte: db.inventoryBatch.fields.minStockAlert };
+  } else if (filter === 'expiring') {
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + days);
+    where.expiryDate = { lte: expiryDate, gte: new Date() };
+  } else if (filter === 'vencidos') {
+    where.expiryDate = { lt: new Date() };
+  }
+
+  const medicationWhere: any = {};
+  if (search) {
+    medicationWhere.OR = [
+      { name: { contains: search } },
+      { genericName: { contains: search } },
+      { brand: { contains: search } },
+    ];
+  }
+  if (category && category !== 'Todos') {
+    medicationWhere.category = { contains: category };
+  }
+  if (filter === 'controlled') {
+    medicationWhere.controlledSubstance = true;
+  }
+
+  if (Object.keys(medicationWhere).length > 0) {
+    where.medication = medicationWhere;
   }
 
   const [batches, total] = await Promise.all([
@@ -80,7 +99,7 @@ export async function GET(request: NextRequest) {
         medication: true,
         supplier: { select: { id: true, name: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { expiryDate: 'asc' }, // FEFO: earliest expiry first
       skip,
       take: limit,
     }),

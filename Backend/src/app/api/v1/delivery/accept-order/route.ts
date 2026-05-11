@@ -61,19 +61,19 @@ export async function POST(request: NextRequest) {
       data: { status: 'delivering' },
     });
 
-    await createAuditLog({
-      userId: auth.user.id,
-      action: 'accept_delivery',
-      entity: 'Delivery',
-      entityId: delivery.id,
-      newValues: {
-        orderId,
-        deliveryPersonId: deliveryPerson.id,
-        status: 'assigned',
-      },
-    });
-
     return delivery;
+  });
+
+  await createAuditLog({
+    userId: auth.user.id,
+    action: 'accept_delivery',
+    entity: 'Delivery',
+    entityId: result.id,
+    newValues: {
+      orderId,
+      deliveryPersonId: deliveryPerson.id,
+      status: 'assigned',
+    },
   });
 
   const completeDelivery = await db.delivery.findUnique({

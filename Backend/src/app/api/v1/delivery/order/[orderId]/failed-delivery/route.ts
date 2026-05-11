@@ -98,21 +98,21 @@ export async function POST(
       });
     }
 
-    await createAuditLog({
-      userId: auth.user.id,
-      action: 'failed_delivery',
-      entity: 'Delivery',
-      entityId: delivery.id,
-      newValues: {
-        orderId,
-        reason,
-        failedAttempts: newFailedAttempts,
-        cancelled: newFailedAttempts >= 3,
-      },
-    });
-
     return updatedOrder;
-  });
+  }, { timeout: 30000 });
+
+  createAuditLog({
+    userId: auth.user.id,
+    action: 'failed_delivery',
+    entity: 'Delivery',
+    entityId: delivery.id,
+    newValues: {
+      orderId,
+      reason,
+      failedAttempts: newFailedAttempts,
+      cancelled: newFailedAttempts >= 3,
+    },
+  }).catch(err => console.error('AuditLog error (ignored):', err));
 
   return apiSuccess({
     orderId,

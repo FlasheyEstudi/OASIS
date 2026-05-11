@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Phone, Siren, MapPin, Clock, User, CheckCircle, Shield } from 'lucide-react'
-import { OasisButton, OasisIconButton, HeartbeatCheck } from '../shared/shared-components'
+import { ArrowLeft, Phone, Siren, MapPin, Clock, User, CheckCircle, Shield, AlertCircle } from 'lucide-react'
+import { OasisButton, OasisIconButton, HeartbeatCheck, DropLoader } from '../shared/shared-components'
 import { useNavigation } from '../navigation-store'
 
 export default function PatientEmergency() {
@@ -10,13 +10,43 @@ export default function PatientEmergency() {
   const [confirming, setConfirming] = useState(false)
   const [sent, setSent] = useState(false)
   const [sentTime, setSentTime] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [response, setResponse] = useState<any>(null)
 
-  const handleSendAlert = () => {
-    const now = new Date()
-    const hours = now.getHours().toString().padStart(2, '0')
-    const minutes = now.getMinutes().toString().padStart(2, '0')
-    setSentTime(`${hours}:${minutes}`)
-    setSent(true)
+  const handleSendAlert = async () => {
+    setLoading(true)
+    try {
+      const { api } = await import('@/lib/api-client')
+      let location = { lat: 0, lng: 0 }
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((res, rej) => 
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+          )
+          location = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        } catch (e) { console.warn('Could not get GPS for emergency') }
+      }
+
+      const res = await api.post('/patient/emergency', { 
+        latitude: location.lat, 
+        longitude: location.lng 
+      })
+      
+      if (res.success) {
+        setResponse(res.data)
+        const now = new Date()
+        setSentTime(`${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`)
+        setSent(true)
+      }
+    } catch (err) {
+      console.error('Emergency alert failed:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCall911 = () => {
+    window.location.href = 'tel:911'
   }
 
   return (
@@ -39,21 +69,14 @@ export default function PatientEmergency() {
             <div className="space-y-3 text-left">
               <div className="p-4 rounded-[16px] bg-[#E8F5EE] space-y-3">
                 <h3 className="font-nunito font-bold text-sm text-[#0E8C5E] flex items-center gap-2">
-                  <Shield size={16} /> Informacion de respuesta
+                  <Shield size={16} /> Información de respuesta
                 </h3>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
                     <User size={14} className="text-[#0E8C5E]" />
                     <div>
                       <p className="font-inter font-semibold text-xs text-[#4A4A4A]">Contacto notificado</p>
-                      <p className="font-inter text-xs text-[#8A8A8A]">Carlos Lopez (Esposo)</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin size={14} className="text-[#0077B6]" />
-                    <div>
-                      <p className="font-inter font-semibold text-xs text-[#4A4A4A]">Ubicacion compartida</p>
-                      <p className="font-inter text-xs text-[#8A8A8A]">Barrio Linda Vista, Managua</p>
+                      <p className="font-inter text-xs text-[#8A8A8A]">{response?.contactNotified || 'Cargando...'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -67,15 +90,22 @@ export default function PatientEmergency() {
                     <CheckCircle size={14} className="text-[#0E8C5E]" />
                     <div>
                       <p className="font-inter font-semibold text-xs text-[#4A4A4A]">Estado</p>
-                      <p className="font-inter text-xs text-[#0E8C5E]">Notificacion recibida</p>
+                      <p className="font-inter text-xs text-[#0E8C5E]">{response?.message || 'Notificación recibida'}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
+              <OasisButton 
+                className="w-full bg-[#0E8C5E]"
+                onClick={() => window.location.href = `tel:${response?.contactPhone || '911'}`}
+              >
+                 <Phone size={16} className="mr-2" /> Llamar a {response?.contactNotified?.split(' ')[0] || 'Contacto'}
+              </OasisButton>
+
               <div className="p-3 rounded-[12px] bg-[#FFF3E0] flex items-center gap-2">
-                <Phone size={14} className="text-[#F4A261]" />
-                <span className="font-inter text-xs text-[#F4A261]">Emergencia real? Llama al 911 directamente</span>
+                <AlertCircle size={14} className="text-[#F4A261]" />
+                <span className="font-inter text-[10px] font-bold text-[#F4A261] uppercase">Emergencia real? Llama al 911 directamente</span>
               </div>
             </div>
 
@@ -93,10 +123,18 @@ export default function PatientEmergency() {
             <p className="font-inter text-sm text-[#8A8A8A]">Se notificara a Carlos Lopez (Esposo) y se compartira tu ubicacion.</p>
             <div className="flex gap-3">
               <OasisButton variant="ghost" onClick={() => setConfirming(false)}>Cancelar</OasisButton>
-              <OasisButton onClick={handleSendAlert} className="bg-[#F4A261] hover:bg-[#E09640]">
-                <Phone size={16} className="mr-2" /> Enviar Alerta
+              <OasisButton 
+                onClick={handleSendAlert} 
+                className="bg-[#F4A261] hover:bg-[#E09640]"
+                disabled={loading}
+              >
+                {loading ? <DropLoader size={20} color="#FFF" /> : <><Phone size={16} className="mr-2" /> Enviar Alerta</>}
               </OasisButton>
             </div>
+            
+            <OasisButton variant="outline" className="w-full border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444]/10" onClick={handleCall911}>
+               <Phone size={16} className="mr-2" /> Llamar 911 Directo
+            </OasisButton>
           </div>
         ) : (
           <div className="text-center space-y-6">

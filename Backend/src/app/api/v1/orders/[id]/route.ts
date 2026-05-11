@@ -166,20 +166,19 @@ export async function PUT(
       });
     }
 
-    await createAuditLog({
-      userId: auth.user.id,
-      action: 'update',
-      entity: 'Order',
-      entityId: id,
-      oldValues: { status: order.status },
-      newValues: { status },
-    });
+  }, { timeout: 30000 });
 
-    return updatedOrder;
+  await createAuditLog({
+    userId: auth.user.id,
+    action: 'update',
+    entity: 'Order',
+    entityId: id,
+    oldValues: { status: order.status },
+    newValues: { status },
   });
 
   const completeOrder = await db.order.findUnique({
-    where: { id: result.id },
+    where: { id: id },
     include: {
       patient: { include: { user: { select: { name: true, phone: true } } } },
       pharmacy: { select: { id: true, name: true, address: true } },

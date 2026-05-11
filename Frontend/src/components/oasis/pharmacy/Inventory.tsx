@@ -1,19 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Edit, ChevronDown, ChevronUp, Check, AlertTriangle, Pill, Loader2 } from 'lucide-react'
+import { Search, Plus, Edit, ChevronDown, ChevronUp, Check, AlertTriangle, Pill, Loader2, Trash2, X } from 'lucide-react'
 import { OasisCard, OasisButton, HeartbeatCheck, DropLoader, EmptyState, ErrorState } from '../shared/shared-components'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
 
-const categories = ['Todos', 'Antibióticos', 'Analgésicos', 'Gastroenterología', 'Cardiología', 'Endocrinología']
+const filterOptions = [
+  { id: 'all', label: 'Todos' },
+  { id: 'lowStock', label: 'Bajo stock' },
+  { id: 'expiring', label: 'Próximos a vencer' },
+  { id: 'controlled', label: 'Controlados' },
+  { id: 'vencidos', label: 'Vencidos' },
+]
 
-function getStockColor(stock: number, max: number) {
-  const pct = stock / max
-  if (pct > 0.5) return '#0E8C5E'
-  if (pct > 0.2) return '#F4A261'
-  return '#EF4444'
+function getStockColor(stock: number, minStock: number) {
+  if (stock <= 0) return '#EF4444'
+  if (stock <= minStock) return '#F4A261'
+  return '#0E8C5E'
 }
 
 function getExpiryStatus(date: string) {
@@ -27,7 +32,7 @@ function getExpiryStatus(date: string) {
 
 export default function Inventory() {
   const { user } = useAuthStore()
-  const [selectedCategory, setSelectedCategory] = useState('Todos')
+  const [selectedFilter, setSelectedFilter] = useState('all')
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,20 +44,32 @@ export default function Inventory() {
   const [loteSuccess, setLoteSuccess] = useState(false)
   const [editSuccess, setEditSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [suppliers, setSuppliers] = useState<any[]>([])
   const [formData, setFormData] = useState({
     medicationId: '',
     batchNumber: '',
     quantity: '',
     costPrice: '',
     sellingPrice: '',
-    expiryDate: ''
+    expiryDate: '',
+    supplierId: '',
+    minStockAlert: '10',
+    maxStock: '1000'
   })
   const [medicationSearch, setMedicationSearch] = useState('')
   const [medicationResults, setMedicationResults] = useState<any[]>([])
 
   useEffect(() => {
     loadInventory()
-  }, [selectedCategory, search])
+    loadSuppliers()
+  }, [selectedFilter, search])
+
+  async function loadSuppliers() {
+    try {
+      const res = await api.get('/pharmacy/suppliers')
+      if (res.success) setSuppliers(res.data)
+    } catch (err) {}
+  }
 
   const searchMedications = async (q: string) => {
     if (q.length < 2) {
@@ -73,7 +90,7 @@ export default function Inventory() {
     try {
       const res = await api.get('/pharmacy/inventory', { 
         search, 
-        category: selectedCategory === 'Todos' ? undefined : selectedCategory,
+        filter: selectedFilter === 'all' ? undefined : selectedFilter,
         limit: 100 
       })
       if (res.success && res.data) {
@@ -94,7 +111,10 @@ export default function Inventory() {
       quantity: item.quantity.toString(),
       costPrice: item.costPrice?.toString() || '',
       sellingPrice: item.sellingPrice.toString(),
-      expiryDate: item.expiryDate.split('T')[0]
+      expiryDate: item.expiryDate.split('T')[0],
+      supplierId: item.supplierId || '',
+      minStockAlert: (item.minStockAlert || 10).toString(),
+      maxStock: (item.maxStock || 1000).toString()
     })
     setEditOpen(true)
   }
@@ -106,14 +126,16 @@ export default function Inventory() {
         ...formData,
         quantity: parseInt(formData.quantity),
         costPrice: parseFloat(formData.costPrice),
-        sellingPrice: parseFloat(formData.sellingPrice)
+        sellingPrice: parseFloat(formData.sellingPrice),
+        minStockAlert: parseInt(formData.minStockAlert),
+        maxStock: parseInt(formData.maxStock)
       })
       if (res.success) {
         setLoteSuccess(true)
         setTimeout(() => {
           setLoteSuccess(false)
           setAddLoteOpen(false)
-          setFormData({ medicationId: '', batchNumber: '', quantity: '', costPrice: '', sellingPrice: '', expiryDate: '' })
+          setFormData({ medicationId: '', batchNumber: '', quantity: '', costPrice: '', sellingPrice: '', expiryDate: '', supplierId: '', minStockAlert: '10', maxStock: '1000' })
           loadInventory()
         }, 1500)
       }
@@ -127,11 +149,14 @@ export default function Inventory() {
   const handleSaveEdit = async () => {
     setSaving(true)
     try {
-      const res = await api.put(`/pharmacy/inventory/${editingItem.id}`, {
+      const res = await api.put('/pharmacy/inventory', {
+        batchId: editingItem.id,
         ...formData,
         quantity: parseInt(formData.quantity),
         costPrice: parseFloat(formData.costPrice),
-        sellingPrice: parseFloat(formData.sellingPrice)
+        sellingPrice: parseFloat(formData.sellingPrice),
+        minStockAlert: parseInt(formData.minStockAlert),
+        maxStock: parseInt(formData.maxStock)
       })
       if (res.success) {
         setEditSuccess(true)
@@ -146,6 +171,16 @@ export default function Inventory() {
       alert('Error al editar lote')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este lote? Esta acción no se puede deshacer.')) return
+    try {
+      const res = await api.put('/pharmacy/inventory', { batchId: id, isActive: false })
+      if (res.success) loadInventory()
+    } catch (err) {
+      alert('Error al eliminar lote')
     }
   }
 
@@ -166,34 +201,37 @@ export default function Inventory() {
         <input 
           value={search} 
           onChange={(e) => setSearch(e.target.value)} 
-          placeholder="Buscar medicamento..." 
+          placeholder="Buscar por nombre, genérico o código..." 
           className="w-full border-2 border-[#E0E0E0] bg-white px-4 py-2.5 pl-10 text-sm font-inter rounded-full focus:border-[#0E8C5E] focus:outline-none" 
         />
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {categories.map((cat) => (
+        {filterOptions.map((opt) => (
           <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`capsule px-4 py-2 text-sm font-inter font-semibold transition-all whitespace-nowrap ${
-              selectedCategory === cat ? 'oasis-gradient text-white shadow-md' : 'bg-[#E8F5EE] text-[#0E8C5E] hover:bg-[#D1EBDD]'
+            key={opt.id}
+            onClick={() => setSelectedFilter(opt.id)}
+            className={`capsule px-4 py-2 text-xs font-inter font-semibold transition-all whitespace-nowrap ${
+              selectedFilter === opt.id ? 'oasis-gradient text-white shadow-md' : 'bg-[#E8F5EE] text-[#0E8C5E] hover:bg-[#D1EBDD]'
             }`}
           >
-            {cat}
+            {opt.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20"><DropLoader size={48} /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1,2,3,4,5,6,7,8].map(i => <div key={i} className="h-64 rounded-2xl bg-gray-100 animate-pulse" />)}
+        </div>
       ) : items.length === 0 ? (
-        <EmptyState message="No se encontraron medicamentos en el inventario" />
+        <EmptyState message={search ? "No se encontraron resultados" : "No hay productos en inventario. Agrega tu primer lote."} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {items.map((item) => {
             const expiry = getExpiryStatus(item.expiryDate)
             const isExpanded = expanded === item.id
+            const color = getStockColor(item.quantity, item.minStockAlert || 10)
 
             return (
               <OasisCard key={item.id} className="group !p-0 overflow-hidden">
@@ -208,25 +246,28 @@ export default function Inventory() {
                     </div>
                   </div>
                   <h3 className="font-nunito font-bold text-[#4A4A4A] group-hover:text-[#0E8C5E] transition-colors line-clamp-1">{item.medication?.name}</h3>
-                  <p className="font-inter text-xs text-[#8A8A8A] mb-4">{item.medication?.category || 'General'}</p>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="font-inter text-[10px] text-[#8A8A8A]">{item.medication?.dosageForm} • {item.medication?.strength}</span>
+                    {item.medication?.controlledSubstance && <span className="text-[9px] font-bold text-[#EF4444] uppercase bg-[#FEE2E2] px-1 rounded">Controlado</span>}
+                  </div>
                   
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-inter font-bold text-[#8A8A8A] uppercase">Stock actual</span>
                       <span className="text-xs font-inter font-bold text-[#4A4A4A]">{item.quantity} und.</span>
                     </div>
-                    <div className="w-full h-1.5 bg-[#F2F2F2] rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-[#F2F2F2] rounded-full overflow-hidden">
                       <div 
                         className="h-full rounded-full transition-all duration-500"
                         style={{ 
-                          width: `${Math.min((item.quantity / (item.maxStock || 100)) * 100, 100)}%`,
-                          backgroundColor: getStockColor(item.quantity, item.maxStock || 100)
+                          width: `${Math.min((item.quantity / (item.maxStock || 1000)) * 100, 100)}%`,
+                          backgroundColor: color
                         }}
                       />
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-lg" style={{ backgroundColor: expiry.bg }}>
+                    <div className="flex items-center justify-between p-2 rounded-[12px]" style={{ backgroundColor: expiry.bg }}>
                        <span className="text-[10px] font-inter font-bold" style={{ color: expiry.color }}>{expiry.label}</span>
-                       <span className="text-[10px] font-inter" style={{ color: expiry.color }}>{new Date(item.expiryDate).toLocaleDateString()}</span>
+                       <span className="text-[10px] font-inter" style={{ color: expiry.color }}>Exp: {new Date(item.expiryDate).toLocaleDateString()}</span>
                     </div>
                   </div>
 
@@ -250,6 +291,9 @@ export default function Inventory() {
                       <OasisButton variant="outline" size="sm" className="flex-1 h-8 text-[10px]" onClick={() => handleEdit(item)}>
                         <Edit size={10} className="mr-1" /> Editar
                       </OasisButton>
+                      <OasisButton variant="danger" size="sm" className="h-8 w-8 !p-0" onClick={() => handleDelete(item.id)}>
+                        <Trash2 size={12} />
+                      </OasisButton>
                     </div>
                   </div>
                 )}
@@ -260,8 +304,8 @@ export default function Inventory() {
       )}
 
       <Dialog open={addLoteOpen} onOpenChange={(open) => { setAddLoteOpen(open); if (!open) setLoteSuccess(false) }}>
-        <DialogContent className="modal-oasis max-w-md">
-          <DialogHeader><DialogTitle className="font-nunito font-bold text-xl">Registrar Lote</DialogTitle></DialogHeader>
+        <DialogContent className="modal-oasis max-w-lg">
+          <DialogHeader><DialogTitle className="font-nunito font-bold text-xl">Registrar Nuevo Lote</DialogTitle></DialogHeader>
           {loteSuccess ? (
             <div className="py-8 text-center">
               <HeartbeatCheck size={56} />
@@ -269,9 +313,9 @@ export default function Inventory() {
               <p className="font-inter text-sm text-[#8A8A8A] mt-1">El nuevo lote se ha vinculado correctamente</p>
             </div>
           ) : (
-          <div className="space-y-4 mt-4">
+          <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto px-1 pr-2">
             <div>
-              <label className="text-xs font-inter text-[#8A8A8A] ml-2">Medicamento (Catálogo)</label>
+              <label className="text-xs font-inter text-[#8A8A8A] ml-2">Medicamento (Catálogo Maestro)</label>
               <div className="relative mt-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8A8A]" />
                 <input 
@@ -324,6 +368,27 @@ export default function Inventory() {
                 <input value={formData.sellingPrice} onChange={e => setFormData({...formData, sellingPrice: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="number" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div>
+                  <label className="text-xs font-inter text-[#8A8A8A] ml-2">Alerta Stock Bajo</label>
+                  <input value={formData.minStockAlert} onChange={e => setFormData({...formData, minStockAlert: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="number" />
+               </div>
+               <div>
+                  <label className="text-xs font-inter text-[#8A8A8A] ml-2">Stock Máximo</label>
+                  <input value={formData.maxStock} onChange={e => setFormData({...formData, maxStock: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="number" />
+               </div>
+            </div>
+            <div>
+              <label className="text-xs font-inter text-[#8A8A8A] ml-2">Proveedor</label>
+              <select 
+                value={formData.supplierId} 
+                onChange={e => setFormData({...formData, supplierId: e.target.value})}
+                className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1 outline-none"
+              >
+                <option value="">Seleccionar proveedor...</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="text-xs font-inter text-[#8A8A8A] ml-2">Fecha de Caducidad</label>
               <input value={formData.expiryDate} onChange={e => setFormData({...formData, expiryDate: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="date" />
@@ -356,6 +421,16 @@ export default function Inventory() {
                 <div>
                   <label className="text-xs font-inter text-[#8A8A8A] ml-2">Precio Venta</label>
                   <input value={formData.sellingPrice} onChange={e => setFormData({...formData, sellingPrice: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="number" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-inter text-[#8A8A8A] ml-2">Min Alerta</label>
+                  <input value={formData.minStockAlert} onChange={e => setFormData({...formData, minStockAlert: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="number" />
+                </div>
+                <div>
+                  <label className="text-xs font-inter text-[#8A8A8A] ml-2">Max Stock</label>
+                  <input value={formData.maxStock} onChange={e => setFormData({...formData, maxStock: e.target.value})} className="w-full input-oasis border-2 border-[#E0E0E0] bg-[#FAFAFA] px-4 py-2.5 font-inter text-sm rounded-[14px] mt-1" type="number" />
                 </div>
               </div>
               <OasisButton className="w-full h-12" onClick={handleSaveEdit} disabled={saving}>

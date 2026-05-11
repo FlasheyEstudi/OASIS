@@ -9,6 +9,7 @@ import AuthProvider from '@/components/oasis/auth/AuthProvider'
 import LandingPage from '@/components/oasis/landing/LandingPage'
 import RegisterPage from '@/components/oasis/landing/RegisterPage'
 import LoginPage, { OasisSplashScreen } from '@/components/oasis/landing/LoginPage'
+import { OasisLogo } from '@/components/oasis/shared/shared-components'
 
 // Platform Layout
 import PlatformSidebar from '@/components/oasis/platform/PlatformSidebar'
@@ -82,6 +83,7 @@ import PatientNearby from '@/components/oasis/patient/PatientNearby'
 
 // Driver Screens
 import DriverMain from '@/components/oasis/driver/DriverMain'
+import DriverActive from '@/components/oasis/driver/DriverActive'
 import DriverEarnings from '@/components/oasis/driver/DriverEarnings'
 import DriverProfile from '@/components/oasis/driver/DriverProfile'
 
@@ -162,8 +164,10 @@ function resolveView(view: string): React.ReactNode {
 
     // ─── Driver ─────────────────────────
     case 'driver-main': return <DriverMain />
+    case 'driver-active': return <DriverActive />
     case 'driver-earnings': return <DriverEarnings />
     case 'driver-profile': return <DriverProfile />
+    case 'driver-chat': return <PatientChat /> // Reusing PatientChat as it is a generic chat component
 
     default: return <Dashboard />
   }
@@ -173,45 +177,61 @@ function AppContent() {
   const { currentView } = useNavigation()
   const { isAuthenticated, user } = useAuthStore()
 
-  // Landing & Auth (always accessible)
-  if (currentView === 'landing') return <LandingPage />
-  if (currentView === 'login') return <LoginPage />
-  if (currentView === 'register') return <RegisterPage />
+  try {
+    // Landing & Auth (always accessible)
+    if (currentView === 'landing') return <LandingPage />
+    if (currentView === 'login') return <LoginPage />
+    if (currentView === 'register') return <RegisterPage />
 
-  // Patient views (mobile layout, no sidebar)
-  if (currentView.startsWith('patient-')) {
-    return <>{resolveView(currentView)}</>
+    // Patient views (mobile layout, no sidebar)
+    if (currentView.startsWith('patient-')) {
+      return <>{resolveView(currentView)}</>
+    }
+
+    // Driver views (mobile layout, no sidebar)
+    if (currentView.startsWith('driver-')) {
+      return <>{resolveView(currentView)}</>
+    }
+
+    // All other views
+    return (
+      <PlatformSidebar>
+        {resolveView(currentView)}
+      </PlatformSidebar>
+    )
+  } catch (err) {
+    console.error('Render Error:', err)
+    return <div className="p-10 text-center">Error de carga. Por favor refresca.</div>
   }
-
-  // Driver views (mobile layout, no sidebar)
-  if (currentView.startsWith('driver-')) {
-    return <>{resolveView(currentView)}</>
-  }
-
-  // All other views (superadmin, clinic_admin, receptionist, doctor, pharmacy_admin, pharmacy_staff)
-  // go through the PlatformSidebar
-  return (
-    <PlatformSidebar>
-      {resolveView(currentView)}
-    </PlatformSidebar>
-  )
 }
 
 export default function Home() {
   const [showSplash, setShowSplash] = useState(true)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 2600)
+    setMounted(true)
+    // Always clear splash after timeout, regardless of anything else
+    const timer = setTimeout(() => {
+      setShowSplash(false)
+    }, 2800)
     return () => clearTimeout(timer)
   }, [])
+
+  // Absolute fallback for server-side or non-hydrated client
+  if (!mounted) {
+    return <div className="min-h-screen bg-white" />
+  }
 
   if (showSplash) {
     return <OasisSplashScreen onComplete={() => setShowSplash(false)} />
   }
 
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <div className="min-h-screen bg-white">
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </div>
   )
 }

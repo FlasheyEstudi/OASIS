@@ -330,6 +330,7 @@ export function OasisIconButton({
   variant = 'ghost', 
   size = 'md',
   label,
+  disabled = false,
   className = ''
 }: { 
   onClick?: () => void; 
@@ -337,6 +338,7 @@ export function OasisIconButton({
   variant?: 'ghost' | 'outline' | 'danger' | 'primary';
   size?: 'sm' | 'md' | 'lg';
   label?: string;
+  disabled?: boolean;
   className?: string;
 }) {
   const sizeClass = size === 'sm' ? 'w-8 h-8' : size === 'md' ? 'w-10 h-10' : 'w-12 h-12'
@@ -350,7 +352,8 @@ export function OasisIconButton({
     <button
       onClick={onClick}
       title={label}
-      className={`${sizeClass} rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${variantClasses[variant]} ${className}`}
+      disabled={disabled}
+      className={`${sizeClass} rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${className}`}
     >
       {icon}
     </button>

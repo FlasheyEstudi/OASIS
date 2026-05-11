@@ -38,10 +38,28 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem('oasis_refresh_token')
 }
 
+export function getFamilyMemberId(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem('oasis_acting_family_id')
+}
+
+export function setFamilyMemberId(id: string | null) {
+  if (typeof window === 'undefined') return
+  if (id) {
+    localStorage.setItem('oasis_acting_family_id', id)
+  } else {
+    localStorage.removeItem('oasis_acting_family_id')
+  }
+}
+
 export function setTokens(accessToken: string, refreshToken: string) {
   if (typeof window === 'undefined') return
   localStorage.setItem('oasis_access_token', accessToken)
   localStorage.setItem('oasis_refresh_token', refreshToken)
+  
+  // Also set cookies for backend compatibility through proxies
+  document.cookie = `access_token=${accessToken}; path=/; max-age=3600; SameSite=Lax`
+  document.cookie = `refresh_token=${refreshToken}; path=/; max-age=604800; SameSite=Lax`
 }
 
 export function clearTokens() {
@@ -49,6 +67,11 @@ export function clearTokens() {
   localStorage.removeItem('oasis_access_token')
   localStorage.removeItem('oasis_refresh_token')
   localStorage.removeItem('oasis_user')
+  localStorage.removeItem('oasis_acting_family_id')
+
+  // Clear cookies
+  document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 }
 
 export function setUser(user: any) {
@@ -125,15 +148,27 @@ export async function apiFetch<T = any>(
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
+    
+    // Attach Family Member Context if active
+    const familyId = getFamilyMemberId()
+    if (familyId) {
+      headers['X-Family-Member-ID'] = familyId
+    }
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+
+  // 8 s timeout — prevents infinite loading spinner on mobile / slow networks
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
 
   try {
     const res = await fetch(url, {
       ...fetchOptions,
       headers,
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
 
     // If 401, try to refresh token and retry
     if (res.status === 401 && !skipAuth) {
@@ -143,7 +178,7 @@ export async function apiFetch<T = any>(
         const retryRes = await fetch(url, { ...fetchOptions, headers })
         try {
           const text = await retryRes.text()
-          return text ? JSON.parse(text) : {}
+          return text ? JSON.parse(text) : ({ success: true, data: {} as any })
         } catch {
           return { success: false, error: 'Error de autenticación' }
         }

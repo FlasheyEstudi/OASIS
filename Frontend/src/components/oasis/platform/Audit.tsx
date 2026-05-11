@@ -1,96 +1,154 @@
+
 'use client'
 
-import { useState } from 'react'
-import { Search, ChevronDown, ChevronUp } from 'lucide-react'
-import { OasisCard } from '../shared/shared-components'
-
-const auditLogs = [
-  { id: 1, user: 'Dr. Carlos Ruiz', action: 'CREAR', entity: 'Receta #0012', date: '20 Ene 2025 09:15', details: { oldValues: null, newValues: { paciente: 'María López', medicamentos: ['Amoxicilina 500mg', 'Paracetamol 500mg'], diagnóstico: 'Infección de vías urinarias' } } },
-  { id: 2, user: 'Recepcionista Ana', action: 'ACTUALIZAR', entity: 'Cita #0345', date: '20 Ene 2025 08:30', details: { oldValues: { hora: '09:00', doctor: 'Dr. Ruiz' }, newValues: { hora: '10:00', doctor: 'Dr. Ruiz' } } },
-  { id: 3, user: 'Admin Clínica', action: 'CREAR', entity: 'Doctor - Dra. Sofía López', date: '19 Ene 2025 16:45', details: { oldValues: null, newValues: { nombre: 'Dra. Sofía López', especialidad: 'Dermatología', email: 'sofia@clinica.com' } } },
-  { id: 4, user: 'Dr. Carlos Ruiz', action: 'ELIMINAR', entity: 'Receta #0008', date: '19 Ene 2025 14:20', details: { oldValues: { paciente: 'Juan Pérez', estado: 'borrador' }, newValues: null } },
-  { id: 5, user: 'Recepcionista Ana', action: 'CREAR', entity: 'Cita #0344', date: '19 Ene 2025 11:00', details: { oldValues: null, newValues: { paciente: 'Ana Gómez', doctor: 'Dra. Martínez', hora: '10:30' } } },
-]
+import React, { useState, useEffect } from 'react'
+import { Search, Filter, Clock, User, Activity, ChevronDown, ChevronUp } from 'lucide-react'
+import { OasisCard, DropLoader, ErrorState } from '../shared/shared-components'
+import { useAuthStore } from '@/lib/auth-store'
+import { api } from '@/lib/api-client'
 
 export default function Audit() {
-  const [expanded, setExpanded] = useState<number | null>(null)
+  const { roleProfile } = useAuthStore()
+  const clinicId = roleProfile?.clinicId
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (clinicId) loadLogs()
+  }, [clinicId])
+
+  async function loadLogs() {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await api.get(`/clinics/${clinicId}/audit-logs`)
+      if (res.success && res.data) {
+        setLogs(res.data)
+      }
+    } catch (err) {
+      setError('No pudimos cargar la auditoría.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filtered = logs.filter(l => 
+    l.user?.name?.toLowerCase().includes(search.toLowerCase()) || 
+    l.action.toLowerCase().includes(search.toLowerCase()) ||
+    l.entity.toLowerCase().includes(search.toLowerCase())
+  )
+
+  if (loading && logs.length === 0) return <div className="flex items-center justify-center min-h-[50vh]"><DropLoader size={48} /></div>
+  if (error) return <ErrorState message={error} onRetry={loadLogs} />
 
   return (
     <div className="p-4 md:p-0 space-y-6 pb-24 md:pb-0">
       <div>
-        <h1 className="font-nunito font-bold text-2xl text-[#4A4A4A]">Auditoría</h1>
-        <p className="font-inter text-sm text-[#8A8A8A]">Registro de todas las acciones del sistema</p>
+        <h1 className="font-nunito font-bold text-2xl text-[#4A4A4A]">Auditoría de Sistema</h1>
+        <p className="font-inter text-sm text-[#8A8A8A]">Registro histórico de acciones en la clínica</p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:max-w-md">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8A8A]" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por usuario, acción..." className="w-full border-2 border-[#E0E0E0] bg-white px-4 py-2.5 pl-10 text-sm font-inter rounded-full focus:border-[#0E8C5E] focus:outline-none" />
+          <input 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            placeholder="Buscar por usuario, acción o entidad..." 
+            className="w-full input-oasis border-2 border-[#E0E0E0] bg-white px-4 py-2.5 pl-10 text-sm font-inter rounded-full focus:border-[#0E8C5E] focus:outline-none" 
+          />
         </div>
-        <select className="border-2 border-[#E0E0E0] rounded-full px-4 py-2.5 text-sm font-inter focus:border-[#0E8C5E] focus:outline-none">
-          <option>Todas las acciones</option>
-          <option>CREAR</option>
-          <option>ACTUALIZAR</option>
-          <option>ELIMINAR</option>
-        </select>
+        <div className="flex items-center gap-2">
+           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E0E0E0] rounded-full text-xs font-inter text-[#4A4A4A] hover:bg-[#FAFAFA] transition-colors">
+             <Filter size={14} /> Filtros Avanzados
+           </button>
+        </div>
       </div>
 
       <div className="bg-white card-oasis overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#E0E0E0]">
-              <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-5 py-3">Usuario</th>
-              <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-5 py-3">Acción</th>
-              <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-5 py-3 hidden md:table-cell">Entidad</th>
-              <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-5 py-3 hidden md:table-cell">Fecha</th>
-              <th className="text-right font-inter font-semibold text-xs text-[#8A8A8A] px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {auditLogs.map((log) => (
-              <>
-                <tr key={log.id} className="border-b border-[#E0E0E0]/50 hover:bg-[#E8F5EE]/20 transition-colors cursor-pointer" onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
-                  <td className="px-5 py-3 font-inter font-medium text-sm text-[#4A4A4A]">{log.user}</td>
-                  <td className="px-5 py-3">
-                    <span className={`capsule px-2 py-0.5 text-[10px] font-inter font-semibold ${
-                      log.action === 'CREAR' ? 'bg-[#E8F5EE] text-[#0E8C5E]' :
-                      log.action === 'ACTUALIZAR' ? 'bg-[#E0F2FE] text-[#0077B6]' :
-                      'bg-[#FEE2E2] text-[#EF4444]'
-                    }`}>
-                      {log.action}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 hidden md:table-cell font-inter text-sm text-[#8A8A8A]">{log.entity}</td>
-                  <td className="px-5 py-3 hidden md:table-cell font-inter text-xs text-[#8A8A8A]">{log.date}</td>
-                  <td className="px-5 py-3 text-right">
-                    {expanded === log.id ? <ChevronUp size={14} className="text-[#8A8A8A]" /> : <ChevronDown size={14} className="text-[#8A8A8A]" />}
-                  </td>
-                </tr>
-                {expanded === log.id && (
-                  <tr key={`${log.id}-detail`}>
-                    <td colSpan={5} className="px-5 py-4 bg-[#FAFAFA]">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <div className="font-inter font-semibold text-xs text-[#8A8A8A] mb-1">Valores Anteriores</div>
-                          <pre className="bg-white rounded-[14px] p-3 text-xs font-inter text-[#4A4A4A] overflow-auto max-h-32">
-                            {log.details.oldValues ? JSON.stringify(log.details.oldValues, null, 2) : '— N/A —'}
-                          </pre>
-                        </div>
-                        <div>
-                          <div className="font-inter font-semibold text-xs text-[#8A8A8A] mb-1">Valores Nuevos</div>
-                          <pre className="bg-white rounded-[14px] p-3 text-xs font-inter text-[#4A4A4A] overflow-auto max-h-32">
-                            {log.details.newValues ? JSON.stringify(log.details.newValues, null, 2) : '— N/A —'}
-                          </pre>
-                        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-[#E0E0E0] bg-[#FAFAFA]">
+                <th className="text-left font-inter font-semibold text-[10px] text-[#8A8A8A] px-5 py-4 uppercase tracking-widest">Fecha y Hora</th>
+                <th className="text-left font-inter font-semibold text-[10px] text-[#8A8A8A] px-5 py-4 uppercase tracking-widest">Usuario</th>
+                <th className="text-left font-inter font-semibold text-[10px] text-[#8A8A8A] px-5 py-4 uppercase tracking-widest">Acción</th>
+                <th className="text-left font-inter font-semibold text-[10px] text-[#8A8A8A] px-5 py-4 uppercase tracking-widest">Entidad</th>
+                <th className="text-right font-inter font-semibold text-[10px] text-[#8A8A8A] px-5 py-4 uppercase tracking-widest">Detalles</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((log) => (
+                <React.Fragment key={log.id}>
+                  <tr 
+                    key={log.id} 
+                    className={`border-b border-[#F0F0F0] hover:bg-[#E8F5EE]/20 transition-colors cursor-pointer ${expandedId === log.id ? 'bg-[#E8F5EE]/30' : ''}`}
+                    onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                  >
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-xs font-inter text-[#4A4A4A]">
+                        <Clock size={14} className="text-[#0E8C5E]" />
+                        {new Date(log.createdAt).toLocaleString('es-NI', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2 text-xs font-inter text-[#4A4A4A]">
+                        <User size={14} className="text-[#0077B6]" />
+                        <span className="font-semibold">{log.user?.name || 'Sistema'}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        log.action === 'create' ? 'bg-[#E8F5EE] text-[#0E8C5E]' :
+                        log.action === 'update' ? 'bg-[#E0F2FF] text-[#0077B6]' :
+                        log.action === 'delete' ? 'bg-[#FEE2E2] text-[#EF4444]' :
+                        'bg-[#F0F0F0] text-[#8A8A8A]'
+                      }`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2 text-xs font-inter text-[#8A8A8A]">
+                        <Activity size={14} />
+                        {log.entity}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {expandedId === log.id ? <ChevronUp size={16} className="ml-auto" /> : <ChevronDown size={16} className="ml-auto" />}
+                    </td>
                   </tr>
-                )}
-              </>
-            ))}
-          </tbody>
-        </table>
+                  {expandedId === log.id && (
+                    <tr>
+                      <td colSpan={5} className="px-10 py-6 bg-[#FAFAFA] border-b border-[#E0E0E0]">
+                        <div className="grid md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <div>
+                            <h4 className="text-[10px] font-bold text-[#8A8A8A] uppercase mb-2">Valores Anteriores</h4>
+                            <div className="bg-white p-3 rounded-xl border border-[#E0E0E0] text-[11px] font-mono overflow-auto max-h-40">
+                              {log.oldValues ? <pre>{JSON.stringify(log.oldValues, null, 2)}</pre> : <span className="italic text-[#8A8A8A]">N/A</span>}
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="text-[10px] font-bold text-[#8A8A8A] uppercase mb-2">Valores Nuevos</h4>
+                            <div className="bg-white p-3 rounded-xl border border-[#E0E0E0] text-[11px] font-mono overflow-auto max-h-40">
+                               {log.newValues ? <pre>{JSON.stringify(log.newValues, null, 2)}</pre> : <span className="italic text-[#8A8A8A]">N/A</span>}
+                            </div>
+                          </div>
+                          <div className="md:col-span-2 flex items-center justify-between pt-2">
+                             <p className="text-[10px] font-inter text-[#8A8A8A]">Entidad ID: <span className="font-mono">{log.entityId}</span></p>
+                             <p className="text-[10px] font-inter text-[#8A8A8A]">IP: {log.ipAddress || 'Interna'}</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

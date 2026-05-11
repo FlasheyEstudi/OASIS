@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { AppRole } from '@/lib/auth-store'
 
 export type { AppRole }
@@ -75,8 +76,10 @@ export type AppView =
   | 'patient-nearby'
   // Driver
   | 'driver-main'
+  | 'driver-active'
   | 'driver-earnings'
   | 'driver-profile'
+  | 'driver-chat'
 
 interface NavigationState {
   currentView: AppView
@@ -120,18 +123,25 @@ export function isPlatformView(view: AppView): boolean {
   return sidebarType === 'superadmin' || sidebarType === 'clinic' || sidebarType === 'pharmacy'
 }
 
-export const useNavigation = create<NavigationState>((set, get) => ({
-  currentView: 'landing',
-  navigate: (view) => {
-    const role = getRoleFromView(view)
-    set({ currentView: view, role, sidebarOpen: false, mobileMenuOpen: false })
-  },
-  role: 'patient',
-  setRole: (role) => set({ role }),
-  sidebarCollapsed: false,
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-  sidebarOpen: false,
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  mobileMenuOpen: false,
-  setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
-}))
+export const useNavigation = create<NavigationState>()(
+  persist(
+    (set, get) => ({
+      currentView: 'landing',
+      navigate: (view) => {
+        const role = getRoleFromView(view)
+        set({ currentView: view, role, sidebarOpen: false, mobileMenuOpen: false })
+      },
+      role: 'patient',
+      setRole: (role) => set({ role }),
+      sidebarCollapsed: false,
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      sidebarOpen: false,
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      mobileMenuOpen: false,
+      setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
+    }),
+    {
+      name: 'oasis-navigation-storage',
+    }
+  )
+)

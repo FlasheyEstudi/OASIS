@@ -311,26 +311,25 @@ export async function POST(request: NextRequest) {
       data: { loyaltyPointsEarned: pointsEarned },
     });
 
-    // Step 8: Create audit log
-    await createAuditLog({
-      userId: auth.user.id,
-      action: 'create',
-      entity: 'Order',
-      entityId: order.id,
-      newValues: {
-        orderId: order.id,
-        patientId: patient.id,
-        pharmacyId,
-        totalAmount,
-        itemsCount: orderItemsData.length,
-        deliveryType,
-        paymentMethod,
-        loyaltyPointsEarned: pointsEarned,
-      },
-    });
-
     return order;
-  });
+  }, { timeout: 30000 });
+
+  // Step 8: Create audit log (outside transaction to avoid locking)
+  createAuditLog({
+    userId: auth.user.id,
+    action: 'create',
+    entity: 'Order',
+    entityId: result.id,
+    newValues: {
+      orderId: result.id,
+      patientId: patient.id,
+      pharmacyId,
+      totalAmount,
+      itemsCount: orderItemsData.length,
+      deliveryType,
+      paymentMethod,
+    },
+  }).catch(err => console.error('AuditLog error (ignored):', err));
 
   // Fetch complete order with relations
   const completeOrder = await db.order.findUnique({

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// 🌿 OASIS - Seed de Datos de Prueba
-// Ejecutar con: bun run prisma/seed.ts
+// 🌿 OASIS - Seed de Datos de Prueba (Maestro)
+// Ejecutar con: npx prisma db seed
 // ═══════════════════════════════════════════════════════════════
 
 import { PrismaClient } from '@prisma/client';
@@ -9,9 +9,9 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Sembrando datos de prueba para Oasis...\n');
+  console.log('🌱 Sembrando datos de prueba MAESTROS para Oasis...\n');
 
-  // Limpiar datos existentes
+  // Limpiar datos existentes en orden de dependencia
   await prisma.paymentTransaction.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.notification.deleteMany();
@@ -50,16 +50,14 @@ async function main() {
   await prisma.user.deleteMany();
 
   const hashPassword = async (pw: string) => bcrypt.hash(pw, 12);
-  const demoPassword = await hashPassword('Demo2025!');
+  const demoPassword = await hashPassword('Oasis2025!');
 
   // ── SUPERADMIN ─────────────────────────────────────────────
-  console.log('👤 Creando Superadmin...');
   const superadminUser = await prisma.user.create({
     data: {
-      email: 'superadmin@oasis.nii',
-      password: await hashPassword('Oasis2025!'),
+      email: 'superadmin@oasis.ni',
+      password: demoPassword,
       name: 'Admin Oasis',
-      phone: '+50588880000',
       role: 'superadmin',
       isActive: true,
       isDemoUser: true,
@@ -67,238 +65,224 @@ async function main() {
   });
 
   // ── CLÍNICA ────────────────────────────────────────────────
-  console.log('🏥 Creando Clínica...');
   const clinic = await prisma.clinic.create({
     data: {
-      name: 'Clínica Oasis Demo',
-      description: 'Clínica general con múltiples especialidades en Managua',
+      name: 'Clínica Oasis Central',
+      description: 'Hospital Metropolitano Demo',
       phone: '+50522223333',
-      email: 'info@clinicademo.nii',
-      address: 'Rotonda Rubén Darío, 200m al sur',
+      email: 'info@clinicacentral.ni',
+      address: 'Pista Jean Paul Genie',
       city: 'Managua',
       department: 'Managua',
-      latitude: 12.1149,
-      longitude: -86.2714,
-      settings: JSON.stringify({ telemedicine_enabled: true, currency: 'NIO' }),
-    },
-  });
-
-  // Clinic Admin
-  const clinicAdminUser = await prisma.user.create({
-    data: {
-      email: 'admin@clinicademo.nii',
-      password: demoPassword,
-      name: 'Admin Clínica Demo',
-      phone: '+50587771111',
-      role: 'clinic_admin',
-      isActive: true,
-      isDemoUser: true,
-    },
-  });
-  await prisma.clinicAdmin.create({
-    data: { userId: clinicAdminUser.id, clinicId: clinic.id },
-  });
-
-  // Recepcionista
-  const receptionistUser = await prisma.user.create({
-    data: {
-      email: 'recepcion@clinicademo.nii',
-      password: demoPassword,
-      name: 'Ana Reyes (Demo)',
-      phone: '+50587772222',
-      role: 'receptionist',
-      isActive: true,
-      isDemoUser: true,
-    },
-  });
-  await prisma.receptionist.create({
-    data: { userId: receptionistUser.id, clinicId: clinic.id },
-  });
-
-  // Servicios
-  const consultaGeneral = await prisma.service.create({
-    data: { clinicId: clinic.id, name: 'Consulta General', duration: 30, price: 800 },
-  });
-  const pediatria = await prisma.service.create({
-    data: { clinicId: clinic.id, name: 'Pediatría', duration: 30, price: 1000 },
-  });
-
-  // Doctores
-  console.log('🩺 Creando Doctores...');
-  const doctor1User = await prisma.user.create({
-    data: {
-      email: 'carlos@oasis.ni',
-      password: demoPassword,
-      name: 'Dr. Carlos López',
-      phone: '+50587773333',
-      role: 'doctor',
-      isActive: true,
-      isDemoUser: true,
-    },
-  });
-  const doctor1 = await prisma.doctor.create({
-    data: {
-      userId: doctor1User.id,
-      clinicId: clinic.id,
-      specialty: 'Medicina General',
-      licenseNumber: 'DEMO-001',
-      consultationFee: 800,
-      schedule: JSON.stringify({ lunes: { start: '08:00', end: '17:00' } }),
-      rating: 4.8,
-    },
-  });
-
-  const doctor2User = await prisma.user.create({
-    data: {
-      email: 'maria@oasis.ni',
-      password: demoPassword,
-      name: 'Dra. María González',
-      phone: '+50587774444',
-      role: 'doctor',
-      isActive: true,
-      isDemoUser: true,
-    },
-  });
-  const doctor2 = await prisma.doctor.create({
-    data: {
-      userId: doctor2User.id,
-      clinicId: clinic.id,
-      specialty: 'Pediatría',
-      licenseNumber: 'DEMO-002',
-      consultationFee: 1000,
-      schedule: JSON.stringify({ martes: { start: '09:00', end: '17:00' } }),
-      rating: 4.9,
-    },
-  });
-
-  // ── FARMACIA ───────────────────────────────────────────────
-  console.log('💊 Creando Farmacia...');
-  const pharmacy = await prisma.pharmacy.create({
-    data: {
-      name: 'Farmacia Oasis Demo',
-      address: 'Centro Comercial Managua, Local 12',
-      city: 'Managua',
-      department: 'Managua',
-      latitude: 12.1364,
+      latitude: 12.1054,
       longitude: -86.2514,
     },
   });
 
-  const pharmAdminUser = await prisma.user.create({
+  // ── FARMACIA ───────────────────────────────────────────────
+  const pharmacy = await prisma.pharmacy.create({
     data: {
-      email: 'admin@farmaciaoasis.ni',
-      password: demoPassword,
-      name: 'Admin Farmacia Demo',
-      role: 'pharmacy_admin',
-      isActive: true,
-      isDemoUser: true,
+      name: 'Farmacia Oasis Los Robles',
+      address: 'Los Robles, de Plaza El Sol 2c al sur',
+      city: 'Managua',
+      department: 'Managua',
+      latitude: 12.1264,
+      longitude: -86.2654,
     },
   });
-  await prisma.pharmacyAdmin.create({
-    data: { userId: pharmAdminUser.id, pharmacyId: pharmacy.id },
+
+  // ── DOCTOR ─────────────────────────────────────────────────
+  const doctorUser = await prisma.user.create({
+    data: {
+      email: 'carlos@oasis.ni',
+      password: demoPassword,
+      name: 'Dr. Carlos Mendoza',
+      role: 'doctor',
+      isActive: true,
+    },
+  });
+  const doctor = await prisma.doctor.create({
+    data: {
+      userId: doctorUser.id,
+      clinicId: clinic.id,
+      specialty: 'Medicina Interna',
+      licenseNumber: 'MINSA-12345',
+      consultationFee: 1200,
+    },
   });
 
-  // ── PACIENTES ──────────────────────────────────────────────
-  console.log('🧍 Creando Pacientes...');
-  const patient1User = await prisma.user.create({
+  // ── PACIENTE ───────────────────────────────────────────────
+  const patientUser = await prisma.user.create({
     data: {
       email: 'juan@oasis.ni',
       password: demoPassword,
-      name: 'Juan Pérez',
+      name: 'Juan Pérez (Paciente)',
+      phone: '+50588887777',
       role: 'patient',
       isActive: true,
-      isDemoUser: true,
     },
   });
-  const patient1 = await prisma.patient.create({
+  const patient = await prisma.patient.create({
     data: {
-      userId: patient1User.id,
-      bloodType: 'O+',
-      allergies: JSON.stringify(['penicilina']),
-      chronicConditions: JSON.stringify(['hipertensión arterial']),
+      userId: patientUser.id,
+      address: 'Residencial Las Colinas, Calle 4',
+      city: 'Managua',
+      latitude: 12.0912,
+      longitude: -86.2345,
     },
   });
 
-  const patient2User = await prisma.user.create({
-    data: {
-      email: 'ana@oasis.ni',
-      password: demoPassword,
-      name: 'Ana Martínez',
-      role: 'patient',
-      isActive: true,
-      isDemoUser: true,
-    },
-  });
-  const patient2 = await prisma.patient.create({
-    data: {
-      userId: patient2User.id,
-    },
-  });
-  await prisma.familyMember.create({
-    data: {
-      patientId: patient2.id,
-      name: 'Hijo de Ana',
-      relationship: 'hijo',
-    },
-  });
-
-  // ── REPARTIDOR ─────────────────────────────────────────────
+  // ── REPARTIDOR (LUIS ROJAS) ────────────────────────────────
   const deliveryUser = await prisma.user.create({
     data: {
       email: 'luis@oasis.ni',
       password: demoPassword,
       name: 'Luis Rojas',
+      phone: '+50584443333',
       role: 'delivery_person',
       isActive: true,
-      isDemoUser: true,
     },
   });
-  await prisma.deliveryPerson.create({
+  const deliveryPerson = await prisma.deliveryPerson.create({
     data: {
       userId: deliveryUser.id,
-      vehicleType: 'moto',
+      vehicleType: 'Moto',
+      plateNumber: 'M-12345',
       isAvailable: true,
       isVerified: true,
+      zones: JSON.stringify(['Los Robles', 'Altamira', 'Las Colinas']),
     },
   });
 
   // ── MEDICAMENTOS ───────────────────────────────────────────
-  const medNames = ['Paracetamol', 'Ibuprofeno', 'Amoxicilina', 'Loratadina', 'Metformina'];
-  for (const name of medNames) {
-    const med = await prisma.medication.create({
-      data: { name, category: 'General', requiresPrescription: name === 'Amoxicilina' },
-    });
+  const medications = await Promise.all([
+    prisma.medication.create({ data: { name: 'Amoxicilina 500mg', category: 'Antibiótico', requiresPrescription: true } }),
+    prisma.medication.create({ data: { name: 'Paracetamol 500mg', category: 'Analgésico', requiresPrescription: false } }),
+    prisma.medication.create({ data: { name: 'Metformina 850mg', category: 'Diabetes', requiresPrescription: true } }),
+  ]);
+
+  // Inventario
+  for (const med of medications) {
     await prisma.inventoryBatch.create({
       data: {
         pharmacyId: pharmacy.id,
         medicationId: med.id,
-        batchNumber: `DEMO-${name.toUpperCase()}`,
-        quantity: 50,
-        expiryDate: new Date('2026-12-31'),
-        costPrice: 20,
-        sellingPrice: 35,
-      },
+        batchNumber: `BAT-${med.name.substring(0,3).toUpperCase()}`,
+        quantity: 100,
+        expiryDate: new Date('2026-01-01'),
+        sellingPrice: 150,
+      }
     });
   }
 
-  console.log('\n✅ ¡Seed DEMO completado exitosamente!\n');
-  console.log('══════════════════════════════════════════════════════════════');
-  console.log('🔑 CUENTAS DE PRUEBA:');
-  console.log('══════════════════════════════════════════════════════════════');
-  console.log('Superadmin:      superadmin@oasis.nii       / Oasis2025!');
-  console.log('Clínica Admin:   admin@santamaria.nii        / Clinic2025!');
-  console.log('Recepcionista:   recepcion@santamaria.nii    / Recep2025!');
-  console.log('Doctor 1:        dr.garcia@santamaria.nii    / Doctor2025!');
-  console.log('Doctor 2:        dra.martinez@santamaria.nii / Doctor2025!');
-  console.log('Paciente 1:      carlos@email.com            / Patient2025!');
-  console.log('Paciente 2:      lucia@email.com             / Patient2025!');
-  console.log('Farmacia Admin:  admin@farmaciacentral.nii   / Pharmacy2025!');
-  console.log('Farmacia Staff:  vendedor@farmaciacentral.nii / Staff2025!');
-  console.log('Repartidor 1:    repartidor1@oasis.nii       / Delivery2025!');
-  console.log('Repartidor 2:    repartidor2@oasis.nii       / Delivery2025!');
-  console.log('══════════════════════════════════════════════════════════════');
+  // ── RECETA DIGITAL (CON QR) ────────────────────────────────
+  const prescription = await prisma.prescription.create({
+    data: {
+      doctorId: doctor.id,
+      patientId: patient.id,
+      diagnosis: 'Infección bacteriana leve',
+      verificationCode: 'OASIS-QR-' + Math.random().toString(36).substring(7).toUpperCase(),
+      status: 'active',
+      validUntil: new Date('2026-12-31'),
+    }
+  });
+
+  await prisma.prescriptionItem.create({
+    data: {
+      prescriptionId: prescription.id,
+      medicationId: medications[0].id,
+      quantity: 2,
+      dosage: '1 tableta cada 8 horas por 7 días',
+    }
+  });
+
+  // ── PEDIDO 1: DISPONIBLE (LISTO PARA RECOGER) ─────────────
+  const orderAvailable = await prisma.order.create({
+    data: {
+      patientId: patient.id,
+      pharmacyId: pharmacy.id,
+      status: 'ready_for_pickup',
+      deliveryType: 'delivery',
+      subtotal: 300,
+      deliveryFee: 50,
+      totalAmount: 350,
+      deliveryAddress: 'Altamira, de la Vicky 1c abajo',
+      deliveryLatitude: 12.1190,
+      deliveryLongitude: -86.2550,
+    }
+  });
+
+  // ── PEDIDO 2: ASIGNADO A LUIS (ENTREGA ACTIVA) ────────────
+  const orderActive = await prisma.order.create({
+    data: {
+      patientId: patient.id,
+      pharmacyId: pharmacy.id,
+      prescriptionId: prescription.id,
+      status: 'shipped',
+      deliveryType: 'delivery',
+      subtotal: 500,
+      deliveryFee: 60,
+      totalAmount: 560,
+      deliveryAddress: 'Residencial Las Colinas, Calle 4',
+      deliveryLatitude: 12.0912,
+      deliveryLongitude: -86.2345,
+    }
+  });
+
+  // ── INVOICE FOR ORDER 1 ─────────────────────────────────────
+  await prisma.invoice.create({
+    data: {
+      orderId: orderAvailable.id,
+      patientId: patient.id,
+      pharmacyId: pharmacy.id,
+      invoiceNumber: 'INV-2025-001',
+      type: 'medication',
+      subtotal: 300,
+      tax: 45,
+      total: 345,
+      paymentStatus: 'paid',
+      issuedAt: new Date(),
+    }
+  });
+
+  // ── INVOICE FOR ORDER 2 ─────────────────────────────────────
+  await prisma.invoice.create({
+    data: {
+      orderId: orderActive.id,
+      patientId: patient.id,
+      pharmacyId: pharmacy.id,
+      invoiceNumber: 'INV-2025-002',
+      type: 'medication',
+      subtotal: 500,
+      tax: 75,
+      total: 575,
+      paymentStatus: 'paid',
+      issuedAt: new Date(),
+    }
+  });
+
+  await prisma.delivery.create({
+    data: {
+      orderId: orderActive.id,
+      deliveryPersonId: deliveryPerson.id,
+      status: 'on_route',
+      estimatedArrival: new Date(Date.now() + 30 * 60000),
+    }
+  });
+
+  console.log('✅ ¡Seed Maestro completado exitosamente!');
+  console.log('\n--- CUENTAS DE PRUEBA ---');
+  console.log('Repartidor: luis@oasis.ni / Oasis2025!');
+  console.log('Doctor: carlos@oasis.ni / Oasis2025!');
+  console.log('Paciente: juan@oasis.ni / Oasis2025!');
+  console.log('-------------------------\n');
 }
 
 main()
-  .catch(e => { console.error(e); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

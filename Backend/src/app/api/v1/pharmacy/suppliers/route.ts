@@ -37,14 +37,25 @@ export async function GET(request: NextRequest) {
   if (!auth) return apiUnauthorized();
 
   const { searchParams } = new URL(request.url);
-  const pharmacyId = searchParams.get('pharmacyId') || '';
+  let pharmacyId = searchParams.get('pharmacyId');
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '20');
   const search = searchParams.get('search') || '';
   const isActive = searchParams.get('isActive');
 
+  // Infer pharmacyId if missing (for staff/admins)
   if (!pharmacyId) {
-    return apiError('pharmacyId es requerido', 400);
+    if (auth.user.role === ROLES.PHARMACY_ADMIN) {
+      const admin = await db.pharmacyAdmin.findFirst({ where: { userId: auth.user.id } });
+      pharmacyId = admin?.pharmacyId || null;
+    } else if (auth.user.role === ROLES.PHARMACY_STAFF) {
+      const staff = await db.pharmacyStaff.findFirst({ where: { userId: auth.user.id } });
+      pharmacyId = staff?.pharmacyId || null;
+    }
+  }
+
+  if (!pharmacyId) {
+    return apiError('pharmacyId es requerido o no pudo ser inferido', 400);
   }
 
   const authorized = await canReadSuppliers(auth.user.id, auth.user.role, pharmacyId);

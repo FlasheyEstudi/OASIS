@@ -13,9 +13,10 @@ import { OasisLogo, OasisButton } from '../shared/shared-components'
 import { useNavigation, AppRole, getSidebarType } from '../navigation-store'
 import { useAuthStore } from '@/lib/auth-store'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api-client'
+import { NotificationsTray } from './NotificationsTray'
 
 type NavItem = { id: string; label: string; icon: any }
 
@@ -309,8 +310,12 @@ export function SidebarContent({ currentView, navigate, onItemClick, collapsed, 
 }
 
 export default function PlatformSidebar({ children }: { children: React.ReactNode }) {
-  const { currentView, navigate, role, sidebarCollapsed, toggleSidebar } = useNavigation()
+  const { navigate, currentView, role } = useNavigation()
+  const { user, logout } = useAuthStore()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed)
 
   const items = getMenuItems(role)
   const sidebarWidth = sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
@@ -339,15 +344,24 @@ export default function PlatformSidebar({ children }: { children: React.ReactNod
       <div className="md:hidden sticky top-0 z-40 bg-white border-b border-[#E0E0E0] px-4 h-14 flex items-center justify-between">
         <OasisLogo size="sm" />
         <div className="flex items-center gap-3">
-          <button className="relative">
+          <button 
+            className="relative"
+            onClick={() => setShowNotifications(true)}
+          >
             <Bell size={20} className="text-[#4A4A4A]" />
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#EF4444]" />
           </button>
+          
+          <NotificationsTray open={showNotifications} onOpenChange={setShowNotifications} />
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <button><Menu size={22} className="text-[#4A4A4A]" /></button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[260px] p-0 bg-white">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Menú de Navegación</SheetTitle>
+                <SheetDescription>Accede a todas las secciones de la plataforma</SheetDescription>
+              </SheetHeader>
               <SidebarContent
                 currentView={currentView}
                 navigate={navigate}

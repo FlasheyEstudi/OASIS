@@ -1,115 +1,168 @@
+
 'use client'
 
-import { OasisCard } from '../shared/shared-components'
-import { TrendingUp, TrendingDown, DollarSign, FileText } from 'lucide-react'
-
-const monthlyData = [
-  { month: 'Ago', income: 380000, expenses: 210000 },
-  { month: 'Sep', income: 420000, expenses: 230000 },
-  { month: 'Oct', income: 395000, expenses: 220000 },
-  { month: 'Nov', income: 480000, expenses: 250000 },
-  { month: 'Dic', income: 510000, expenses: 260000 },
-  { month: 'Ene', income: 524800, expenses: 275000 },
-]
+import { useState, useEffect } from 'react'
+import { Calendar, DollarSign, TrendingUp, Download, PieChart as PieChartIcon, BarChart3, ChevronDown } from 'lucide-react'
+import { OasisCard, DropLoader, ErrorState } from '../shared/shared-components'
+import { api } from '@/lib/api-client'
+import { useAuthStore } from '@/lib/auth-store'
 
 export default function Reports() {
-  const totalBilled = 2714800
-  const totalCollected = 2380000
-  const pending = totalBilled - totalCollected
+  const { roleProfile } = useAuthStore()
+  const clinicId = roleProfile?.clinicId
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [groupBy, setGroupBy] = useState<'doctor' | 'service'>('doctor')
+  const [dateRange, setDateRange] = useState({ from: '', to: '' })
+
+  useEffect(() => {
+    if (clinicId) loadReport()
+  }, [clinicId, groupBy])
+
+  async function loadReport() {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await api.get(`/clinics/${clinicId}/reports/revenue`, { 
+        groupBy,
+        from: dateRange.from,
+        to: dateRange.to
+      })
+      if (res.success && res.data) {
+        setData(res.data)
+      }
+    } catch (err) {
+      setError('No pudimos cargar los reportes financieros.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading && !data) return <div className="flex items-center justify-center min-h-[60vh]"><DropLoader size={48} /></div>
+  if (error) return <ErrorState message={error} onRetry={loadReport} />
+  if (!data) return null
 
   return (
     <div className="p-4 md:p-0 space-y-6 pb-24 md:pb-0">
-      <div>
-        <h1 className="font-nunito font-bold text-2xl text-[#4A4A4A]">Reportes Financieros</h1>
-        <p className="font-inter text-sm text-[#8A8A8A]">Resumen de ingresos y gastos</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-nunito font-bold text-2xl text-[#4A4A4A]">Reportes Financieros</h1>
+          <p className="font-inter text-sm text-[#8A8A8A]">Análisis de ingresos y productividad</p>
+        </div>
+        <div className="flex items-center gap-2">
+           <div className="flex bg-[#E8F5EE] p-1 rounded-full">
+              <button 
+                onClick={() => setGroupBy('doctor')}
+                className={`px-4 py-1.5 rounded-full text-xs font-inter font-semibold transition-all ${groupBy === 'doctor' ? 'bg-[#0E8C5E] text-white shadow-md' : 'text-[#0E8C5E]'}`}
+              >
+                Por Doctor
+              </button>
+              <button 
+                onClick={() => setGroupBy('service')}
+                className={`px-4 py-1.5 rounded-full text-xs font-inter font-semibold transition-all ${groupBy === 'service' ? 'bg-[#0E8C5E] text-white shadow-md' : 'text-[#0E8C5E]'}`}
+              >
+                Por Servicio
+              </button>
+           </div>
+           <button className="p-2 bg-white border border-[#E0E0E0] rounded-full text-[#8A8A8A] hover:text-[#0E8C5E] hover:bg-[#E8F5EE] transition-all">
+             <Download size={18} />
+           </button>
+        </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <OasisCard className="!p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#E8F5EE] flex items-center justify-center">
-              <DollarSign size={16} className="text-[#0E8C5E]" />
-            </div>
-            <span className="font-inter text-xs text-[#8A8A8A]">Total Facturado</span>
-          </div>
-          <div className="font-nunito font-bold text-lg md:text-xl text-[#4A4A4A]">C${(totalBilled / 1000).toFixed(0)}K</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <OasisCard className="md:col-span-1 flex flex-col justify-between">
+           <div>
+              <div className="w-10 h-10 rounded-full bg-[#E8F5EE] flex items-center justify-center mb-4">
+                <DollarSign size={20} className="text-[#0E8C5E]" />
+              </div>
+              <h3 className="font-inter text-sm text-[#8A8A8A] mb-1">Ingresos Totales (Periodo)</h3>
+              <p className="font-nunito font-bold text-3xl text-[#4A4A4A]">C$ {data.totalRevenue?.toLocaleString() || 0}</p>
+           </div>
+           <div className="mt-6 flex items-center gap-2 text-xs font-inter text-[#0E8C5E] bg-[#E8F5EE] px-3 py-1.5 rounded-lg w-fit">
+              <TrendingUp size={14} /> +12.5% vs mes anterior
+           </div>
         </OasisCard>
-        <OasisCard className="!p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#E8F5EE] flex items-center justify-center">
-              <TrendingUp size={16} className="text-[#0E8C5E]" />
-            </div>
-            <span className="font-inter text-xs text-[#8A8A8A]">Cobrado</span>
-          </div>
-          <div className="font-nunito font-bold text-lg md:text-xl text-[#0E8C5E]">C${(totalCollected / 1000).toFixed(0)}K</div>
-        </OasisCard>
-        <OasisCard className="!p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
-              <TrendingDown size={16} className="text-[#F4A261]" />
-            </div>
-            <span className="font-inter text-xs text-[#8A8A8A]">Pendiente</span>
-          </div>
-          <div className="font-nunito font-bold text-lg md:text-xl text-[#F4A261]">C${(pending / 1000).toFixed(0)}K</div>
+
+        <OasisCard className="md:col-span-2">
+           <div className="flex items-center justify-between mb-6">
+              <h3 className="font-nunito font-bold text-lg text-[#4A4A4A]">Distribución de Ingresos</h3>
+              <BarChart3 size={18} className="text-[#8A8A8A]" />
+           </div>
+           <div className="flex items-end gap-3 h-48">
+              {data.summary?.map((item: any, i: number) => {
+                const maxVal = Math.max(...data.summary.map((s: any) => s.total)) || 1
+                const height = (item.total / maxVal) * 100
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                    <div className="w-full relative bg-[#FAFAFA] rounded-t-[14px] overflow-hidden" style={{ height: '160px' }}>
+                      <div 
+                        className="absolute bottom-0 w-full bg-gradient-to-t from-[#0E8C5E] to-[#0077B6] rounded-t-[10px] transition-all duration-500 group-hover:opacity-80"
+                        style={{ height: `${Math.max(5, height)}%` }}
+                      >
+                         <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#4A4A4A] text-white text-[10px] px-2 py-0.5 rounded font-bold">
+                            C${item.total}
+                         </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-inter text-[#8A8A8A] truncate w-full text-center">
+                      {groupBy === 'doctor' ? item.doctor?.name?.split(' ')[0] : item.service?.name}
+                    </span>
+                  </div>
+                )
+              })}
+           </div>
         </OasisCard>
       </div>
 
-      {/* Chart */}
       <OasisCard>
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-nunito font-bold text-base text-[#4A4A4A]">Tendencia Mensual</h3>
-          <select className="text-xs font-inter border border-[#E0E0E0] rounded-full px-3 py-1 focus:outline-none">
-            <option>Últimos 6 meses</option>
-            <option>Último año</option>
-          </select>
+           <h3 className="font-nunito font-bold text-lg text-[#4A4A4A]">Detalle por {groupBy === 'doctor' ? 'Doctor' : 'Servicio'}</h3>
+           <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-[#8A8A8A]" />
+              <span className="text-xs font-inter text-[#8A8A8A]">Últimos 30 días</span>
+              <ChevronDown size={14} className="text-[#8A8A8A]" />
+           </div>
         </div>
-        <div className="flex items-end gap-3 h-48">
-          {monthlyData.map((d, i) => {
-            const maxVal = Math.max(...monthlyData.map(m => m.income))
-            const incomeH = (d.income / maxVal) * 100
-            const expenseH = (d.expenses / maxVal) * 100
-            return (
-              <div key={i} className="flex-1 flex items-end gap-1 justify-center">
-                <div className="w-5 rounded-t-[8px] oasis-gradient transition-all" style={{ height: `${incomeH}%` }} />
-                <div className="w-5 rounded-t-[8px] bg-[#E0E0E0] transition-all" style={{ height: `${expenseH}%` }} />
-                <span className="absolute -bottom-5 text-[9px] font-inter text-[#8A8A8A]">{d.month}</span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="flex items-center justify-center gap-6 mt-8">
-          <div className="flex items-center gap-2 text-xs font-inter"><div className="w-3 h-3 rounded oasis-gradient" /> Ingresos</div>
-          <div className="flex items-center gap-2 text-xs font-inter"><div className="w-3 h-3 rounded bg-[#E0E0E0]" /> Gastos</div>
-        </div>
-      </OasisCard>
-
-      {/* Detail table */}
-      <OasisCard>
-        <h3 className="font-nunito font-bold text-base text-[#4A4A4A] mb-4">Detalle por Doctor</h3>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#E0E0E0]">
-                <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-4 py-2">Doctor</th>
-                <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-4 py-2">Consultas</th>
-                <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-4 py-2">Ingresos</th>
-                <th className="text-left font-inter font-semibold text-xs text-[#8A8A8A] px-4 py-2">Cobrado</th>
+              <tr className="border-b border-[#F0F0F0] text-left">
+                <th className="pb-3 text-[10px] font-bold text-[#8A8A8A] uppercase tracking-widest">{groupBy === 'doctor' ? 'Médico' : 'Servicio'}</th>
+                <th className="pb-3 text-[10px] font-bold text-[#8A8A8A] uppercase tracking-widest">Atenciones</th>
+                <th className="pb-3 text-[10px] font-bold text-[#8A8A8A] uppercase tracking-widest">Participación</th>
+                <th className="pb-3 text-right text-[10px] font-bold text-[#8A8A8A] uppercase tracking-widest">Total Generado</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                { name: 'Dr. Carlos Ruiz', consults: 86, income: 'C$215,000', collected: 'C$198,000' },
-                { name: 'Dra. María Martínez', consults: 64, income: 'C$180,000', collected: 'C$165,000' },
-                { name: 'Dr. Luis Hernández', consults: 42, income: 'C$129,800', collected: 'C$110,000' },
-              ].map((row, i) => (
-                <tr key={i} className="border-b border-[#E0E0E0]/50 hover:bg-[#E8F5EE]/20 transition-colors">
-                  <td className="px-4 py-3 font-inter font-medium text-sm text-[#4A4A4A]">{row.name}</td>
-                  <td className="px-4 py-3 font-inter text-sm text-[#8A8A8A]">{row.consults}</td>
-                  <td className="px-4 py-3 font-inter text-sm text-[#4A4A4A]">{row.income}</td>
-                  <td className="px-4 py-3 font-inter text-sm text-[#0E8C5E]">{row.collected}</td>
-                </tr>
-              ))}
+              {data.summary?.map((item: any, i: number) => {
+                const percentage = ((item.total / (data.totalRevenue || 1)) * 100).toFixed(1)
+                return (
+                  <tr key={i} className="border-b border-[#F0F0F0] last:border-0 hover:bg-[#FAFAFA] transition-colors">
+                    <td className="py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-[#E8F5EE] flex items-center justify-center text-[#0E8C5E] font-bold text-xs">
+                          {groupBy === 'doctor' ? item.doctor?.name?.[0] : item.service?.name?.[0]}
+                        </div>
+                        <span className="font-inter font-medium text-sm text-[#4A4A4A]">
+                          {groupBy === 'doctor' ? item.doctor?.name : item.service?.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-4 font-inter text-sm text-[#4A4A4A]">{item._count || item.count || 0}</td>
+                    <td className="py-4">
+                       <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-[#E8F5EE] rounded-full max-w-[100px] overflow-hidden">
+                             <div className="h-full bg-[#0E8C5E] rounded-full" style={{ width: `${percentage}%` }}></div>
+                          </div>
+                          <span className="text-[10px] font-inter text-[#8A8A8A]">{percentage}%</span>
+                       </div>
+                    </td>
+                    <td className="py-4 text-right font-nunito font-bold text-sm text-[#4A4A4A]">C$ {item.total?.toLocaleString()}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -19,11 +19,16 @@ export async function GET(
 
   const prescription = await db.prescription.findUnique({
     where: { id },
+    include: {
+      doctor: { include: { user: { select: { name: true } } } },
+      patient: { include: { user: { select: { name: true, phone: true } } } },
+      items: { include: { medication: { select: { name: true } } } },
+    }
   });
 
   if (!prescription) return apiNotFound('Receta no encontrada');
 
-  // Verify access (patient only or doctor/admin)
+  // Verify access
   if (auth.user.role === ROLES.PATIENT) {
     const patient = await db.patient.findUnique({ where: { userId: auth.user.id } });
     if (!patient || patient.id !== prescription.patientId) {
@@ -31,16 +36,25 @@ export async function GET(
     }
   }
 
-  // Content for the QR: Verification code or deep link
-  const qrContent = `oasis://verify/${prescription.verificationCode}`;
+  // Content for the QR: Detailed JSON as requested
+  const qrData = {
+    code: prescription.verificationCode,
+    doctor: prescription.doctor.user.name,
+    patient: prescription.patient.user.name,
+    medications: prescription.items.map(i => i.medication.name),
+    date: prescription.createdAt.toISOString().split('T')[0]
+  };
   
-  // For MVP, return the content and a base64 simulation
-  // In production, would use 'qrcode' library to generate PNG
+  const qrContent = JSON.stringify(qrData);
+  
+  // Generate real QR code as Base64
+  const QRCode = require('qrcode');
+  const qrBase64 = await QRCode.toDataURL(qrContent);
+  
   return apiSuccess({
     id: prescription.id,
     verificationCode: prescription.verificationCode,
-    qrContent,
-    qrBase64: `data:image/png;base64,SIMULATED_QR_FOR_${prescription.verificationCode}`,
-    note: 'En producción, qrBase64 contendría la imagen real generada por la librería qrcode.'
+    qrData,
+    qrBase64,
   });
 }

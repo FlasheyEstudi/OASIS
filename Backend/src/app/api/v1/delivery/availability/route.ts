@@ -39,3 +39,17 @@ export async function PUT(request: NextRequest) {
 
   return apiSuccess(updated);
 }
+
+export async function GET(request: NextRequest) {
+  const auth = await getAuthUserFromHeader(request);
+  if (!auth) return apiUnauthorized();
+
+  const deliveryPerson = await db.deliveryPerson.findUnique({
+    where: { userId: auth.user.id },
+    select: { isAvailable: true, vehicleType: true, plateNumber: true, isVerified: true }
+  });
+
+  if (!deliveryPerson) return apiNotFound('Perfil de repartidor no encontrado');
+
+  return apiSuccess(deliveryPerson);
+}

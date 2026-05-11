@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api, setTokens, clearTokens, setUser, getStoredUser, getAccessToken } from './api-client'
+import { api, setTokens, clearTokens, setUser as setUserSync, getStoredUser, getAccessToken } from './api-client'
 
 export type AppRole = 'superadmin' | 'clinic_admin' | 'receptionist' | 'doctor' | 'patient' | 'pharmacy_admin' | 'pharmacy_staff' | 'delivery_person'
 
@@ -76,6 +76,8 @@ interface AuthState {
   logout: () => void
   initialize: () => Promise<void>
   clearError: () => void
+  setUser: (user: AuthUser | null) => void
+  setRoleProfile: (profile: any) => void
 }
 
 // Get the default view for each role
@@ -127,7 +129,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (result.success && result.data) {
         const { user, roleProfile, accessToken, refreshToken } = result.data
         setTokens(accessToken, refreshToken)
-        setUser(user)
+        setUserSync(user)
         set({
           user,
           roleProfile,
@@ -144,7 +146,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // Demo mode - login without API
           const fakeToken = `demo_${Date.now()}`
           setTokens(fakeToken, fakeToken)
-          setUser(demoData.user)
+          setUserSync(demoData.user)
           set({
             user: demoData.user,
             roleProfile: demoData.roleProfile,
@@ -166,7 +168,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (demoData) {
         const fakeToken = `demo_${Date.now()}`
         setTokens(fakeToken, fakeToken)
-        setUser(demoData.user)
+        setUserSync(demoData.user)
         set({
           user: demoData.user,
           roleProfile: demoData.roleProfile,
@@ -196,7 +198,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (result.success && result.data) {
         const { user, accessToken, refreshToken } = result.data
         setTokens(accessToken, refreshToken)
-        setUser(user)
+        setUserSync(user)
         set({ 
           user, 
           roleProfile: {}, // Will be fetched by components or in a separate call
@@ -221,7 +223,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const fakeToken = `demo_${Date.now()}`
     setTokens(fakeToken, fakeToken)
-    setUser(demoData.user)
+    setUserSync(demoData.user)
     set({
       user: demoData.user,
       roleProfile: demoData.roleProfile,
@@ -246,51 +248,81 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
-    const token = getAccessToken()
-    if (!token) {
-      set({ isLoading: false, isAuthenticated: false })
-      return
-    }
+    // Safety net: no matter what happens, clear loading within 5 seconds
+    const safetyTimer = setTimeout(() => {
+      const { isLoading } = useAuthStore.getState()
+      if (isLoading) {
+        console.warn('[Auth] initialize() timed out — forcing isLoading=false')
+        set({ isLoading: false, isAuthenticated: false })
+      }
+    }, 5000)
 
-    // Check if demo token
-    if (token.startsWith('demo_')) {
-      const storedUser = getStoredUser()
-      if (storedUser) {
-        const demoData = DEMO_USERS[storedUser.email]
-        set({
-          user: storedUser,
-          roleProfile: demoData?.roleProfile || null,
-          isAuthenticated: true,
-          isLoading: false,
-          isDemoMode: true,
-        })
+    try {
+      const token = getAccessToken()
+      if (!token) {
+        set({ isLoading: false, isAuthenticated: false })
         return
       }
-    }
 
-    // Try to get user from storage first for instant load
-    const storedUser = getStoredUser()
-    if (storedUser) {
-      set({ user: storedUser, isAuthenticated: true, isLoading: false })
-    }
-
-    // Verify with API
-    try {
-      const result = await api.get<{ user: AuthUser }>('/auth/me')
-      if (result.success && result.data) {
-        setUser(result.data.user)
-        set({ user: result.data.user, isAuthenticated: true, isLoading: false, isDemoMode: false })
-      } else {
+      // Check if demo token
+      if (token.startsWith('demo_')) {
+        const storedUser = getStoredUser()
+        if (storedUser) {
+          const demoData = DEMO_USERS[storedUser.email]
+          set({
+            user: storedUser,
+            roleProfile: demoData?.roleProfile || null,
+            isAuthenticated: true,
+            isLoading: false,
+            isDemoMode: true,
+          })
+          return
+        }
         clearTokens()
-        set({ user: null, isAuthenticated: false, isLoading: false, isDemoMode: false })
+        set({ isLoading: false, isAuthenticated: false })
+        return
       }
-    } catch {
-      // Keep stored user if API fails (offline mode)
-      if (!storedUser) {
-        set({ user: null, isAuthenticated: false, isLoading: false })
+
+      // Try to get user from storage first for instant load
+      const storedUser = getStoredUser()
+      if (storedUser) {
+        set({ user: storedUser, isAuthenticated: true, isLoading: false })
       }
+
+      // Verify with API (api-client already has 8s timeout)
+      try {
+        const result = await api.get<{ user: AuthUser; roleProfile: any }>('/auth/me')
+        if (result.success && result.data) {
+          const { user, roleProfile } = result.data
+          setUserSync(user)
+          set({ user, roleProfile, isAuthenticated: true, isLoading: false, isDemoMode: false })
+        } else {
+          if (!storedUser) {
+            clearTokens()
+            set({ user: null, isAuthenticated: false, isLoading: false, isDemoMode: false })
+          }
+        }
+      } catch {
+        // Keep stored user if API fails (offline / mobile unreachable)
+        if (!storedUser) {
+          set({ user: null, isAuthenticated: false, isLoading: false })
+        } else {
+          set({ isLoading: false })
+        }
+      }
+    } finally {
+      clearTimeout(safetyTimer)
     }
   },
 
   clearError: () => set({ error: null }),
+  setUser: (user) => {
+    if (user) {
+      // Sync with localStorage through api-client
+      setUserSync(user)
+    }
+    set({ user })
+  },
+
+  setRoleProfile: (roleProfile) => set({ roleProfile })
 }))

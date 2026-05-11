@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # GraphHopper Routing Engine (self-hosted, 100% free)
+  # Uses OSM data for Nicaragua from Geofabrik
+  # API available at: http://localhost:8989
+  # ─────────────────────────────────────────────────────────────────
+  graphhopper:
+    image: graphhopper/graphhopper:latest
+    container_name: oasis-graphhopper
+    restart: unless-stopped
+    volumes:
+      - ./maps:/data
+      - graphhopper-cache:/graphhopper/graph-cache
+    ports:
+      - "8989:8989"
+    environment:
+      - JAVA_OPTS=-Xmx2g -Xms512m
+    command: >
+      java -jar /graphhopper/graphhopper-web*.jar
+      server
+      /graphhopper/config-example.yml
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8989/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s  # allow time for OSM indexing on first run
+
+  # ─────────────────────────────────────────────────────────────────
+  # Oasis Backend (Next.js API on port 3001)
+  # ─────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: oasis-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=file:/data/oasis.db
+      - GRAPHHOPPER_URL=http://graphhopper:8989
+      - JWT_SECRET=${JWT_SECRET}
+      - FIREBASE_SERVICE_ACCOUNT_KEY=${FIREBASE_SERVICE_ACCOUNT_KEY}
+    depends_on:
+      graphhopper:
+        condition: service_healthy
+    volumes:
+      - ./Backend/prisma:/app/prisma
+      - backend-db:/data
+
+  # ─────────────────────────────────────────────────────────────────
+  # Oasis Frontend (Next.js on port 3000)
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: oasis-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+    depends_on:
+      - backend
+
+volumes:
+  graphhopper-cache:
+  backend-db:
