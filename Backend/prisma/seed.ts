@@ -12,6 +12,9 @@ async function main() {
   console.log('🌱 Sembrando datos de prueba MAESTROS para Oasis...\n');
 
   // Limpiar datos existentes en orden de dependencia
+  await prisma.allergy.deleteMany();
+  await prisma.chronicCondition.deleteMany();
+  await prisma.systemConfig.deleteMany();
   await prisma.paymentTransaction.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.notification.deleteMany();
@@ -51,6 +54,22 @@ async function main() {
 
   const hashPassword = async (pw: string) => bcrypt.hash(pw, 12);
   const demoPassword = await hashPassword('Oasis2025!');
+
+  // ── CONFIGURACIONES DEL SISTEMA ───────────────────────────
+  console.log('⚙️ Creando configuraciones del sistema...');
+  await prisma.systemConfig.createMany({
+    data: [
+      { key: 'delivery_fee', value: '50', type: 'number', label: 'Tarifa de envío base' },
+      { key: 'max_delivery_distance_km', value: '15', type: 'number', label: 'Radio máximo de entrega (km)' },
+      { key: 'prescription_expiry_days', value: '30', type: 'number', label: 'Días de validez de recetas' },
+      { key: 'loyalty_points_per_100', value: '1', type: 'number', label: 'Puntos de lealtad por cada $100' },
+      { key: 'max_family_members', value: '6', type: 'number', label: 'Máximo de familiares por paciente' },
+      { key: 'appointment_duration_min', value: '30', type: 'number', label: 'Duración default de cita (min)' },
+      { key: 'pharmacy_preparation_min', value: '20', type: 'number', label: 'Tiempo de preparación farmacia (min)' },
+      { key: 'sms_enabled', value: 'false', type: 'boolean', label: 'Habilitar notificaciones SMS' },
+      { key: 'maintenance_mode', value: 'false', type: 'boolean', label: 'Modo mantenimiento' },
+    ],
+  });
 
   // ── SUPERADMIN ─────────────────────────────────────────────
   const superadminUser = await prisma.user.create({
@@ -99,6 +118,7 @@ async function main() {
       name: 'Dr. Carlos Mendoza',
       role: 'doctor',
       isActive: true,
+      isDemoUser: true,
     },
   });
   const doctor = await prisma.doctor.create({
@@ -111,6 +131,41 @@ async function main() {
     },
   });
 
+  // ── CLINICA STAFF ──────────────────────────────────────────
+  const clinicAdminUser = await prisma.user.create({
+    data: {
+      email: 'admin.clinica@oasis.ni',
+      password: demoPassword,
+      name: 'Admin Clínica Santa María',
+      role: 'clinic_admin',
+      isActive: true,
+      isDemoUser: true,
+    },
+  });
+  await prisma.clinicAdmin.create({
+    data: {
+      userId: clinicAdminUser.id,
+      clinicId: clinic.id,
+    },
+  });
+
+  const receptionistUser = await prisma.user.create({
+    data: {
+      email: 'recepcion@oasis.ni',
+      password: demoPassword,
+      name: 'Recepcionista Oasis',
+      role: 'receptionist',
+      isActive: true,
+      isDemoUser: true,
+    },
+  });
+  await prisma.receptionist.create({
+    data: {
+      userId: receptionistUser.id,
+      clinicId: clinic.id,
+    },
+  });
+
   // ── PACIENTE ───────────────────────────────────────────────
   const patientUser = await prisma.user.create({
     data: {
@@ -120,6 +175,7 @@ async function main() {
       phone: '+50588887777',
       role: 'patient',
       isActive: true,
+      isDemoUser: true,
     },
   });
   const patient = await prisma.patient.create({
@@ -132,6 +188,23 @@ async function main() {
     },
   });
 
+  // ── ALERGIAS Y CONDICIONES (Nuevas Tablas) ────────────────
+  await prisma.allergy.create({
+    data: {
+      patientId: patient.id,
+      name: 'Penicilina',
+      severity: 'severe',
+    },
+  });
+
+  await prisma.chronicCondition.create({
+    data: {
+      patientId: patient.id,
+      name: 'Diabetes Mellitus Tipo 2',
+      diagnosedAt: new Date('2020-05-15'),
+    },
+  });
+
   // ── REPARTIDOR (LUIS ROJAS) ────────────────────────────────
   const deliveryUser = await prisma.user.create({
     data: {
@@ -141,6 +214,7 @@ async function main() {
       phone: '+50584443333',
       role: 'delivery_person',
       isActive: true,
+      isDemoUser: true,
     },
   });
   const deliveryPerson = await prisma.deliveryPerson.create({
@@ -151,6 +225,42 @@ async function main() {
       isAvailable: true,
       isVerified: true,
       zones: JSON.stringify(['Los Robles', 'Altamira', 'Las Colinas']),
+    },
+  });
+
+  // ── FARMACIA STAFF ─────────────────────────────────────────
+  const pharmacyAdminUser = await prisma.user.create({
+    data: {
+      email: 'admin.farmacia@oasis.ni',
+      password: demoPassword,
+      name: 'Admin Farmacia Los Robles',
+      role: 'pharmacy_admin',
+      isActive: true,
+      isDemoUser: true,
+    },
+  });
+  await prisma.pharmacyAdmin.create({
+    data: {
+      userId: pharmacyAdminUser.id,
+      pharmacyId: pharmacy.id,
+    },
+  });
+
+  const pharmacyStaffUser = await prisma.user.create({
+    data: {
+      email: 'staff.farmacia@oasis.ni',
+      password: demoPassword,
+      name: 'Staff Farmacia Los Robles',
+      role: 'pharmacy_staff',
+      isActive: true,
+      isDemoUser: true,
+    },
+  });
+  await prisma.pharmacyStaff.create({
+    data: {
+      userId: pharmacyStaffUser.id,
+      pharmacyId: pharmacy.id,
+      role: 'staff',
     },
   });
 

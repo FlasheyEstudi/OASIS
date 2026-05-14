@@ -7,20 +7,37 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { apiSuccess, apiError, apiUnauthorized, apiPaginated } from '@/lib/api-response';
+import { apiPaginated } from '@/lib/api-response';
 import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
+import { paginationSchema } from '@/lib/validations/common';
+import { AppError } from '@/lib/errors';
+import { handleError } from '@/lib/handle-error';
+import { getClientIp, apiLimiter, getRateLimitHeaders } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await getAuthUserFromHeader(request);
-    if (!auth) return apiUnauthorized();
+    // ── Rate Limiting ──
+    const ip = getClientIp(request);
+    const { success, remaining, reset } = await apiLimiter.limit(ip);
 
-    const { user, dbUser } = auth;
+    if (!success) {
+      throw AppError.tooManyRequests('Muchas solicitudes. Intenta de nuevo en un minuto.');
+    }
+
+    const auth = await getAuthUserFromHeader(request);
+    if (!auth) throw AppError.unauthorized();
+
+    const { user } = auth;
     const { searchParams } = new URL(request.url);
 
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const search = searchParams.get('search') || '';
+    // ── Validate Query Params with Zod ──
+    const queryParams = Object.fromEntries(searchParams.entries());
+    const parsedQuery = paginationSchema.safeParse(queryParams);
+    if (!parsedQuery.success) {
+      throw AppError.badRequest('Parámetros de búsqueda inválidos', parsedQuery.error.flatten().fieldErrors as any);
+    }
+
+    const { page, limit, search } = parsedQuery.data;
     const skip = (page - 1) * limit;
 
     // Build where clause based on role
@@ -29,19 +46,19 @@ export async function GET(request: NextRequest) {
     if (user.role === ROLES.DOCTOR) {
       // Doctor sees only their assigned patients
       const doctor = await db.doctor.findUnique({ where: { userId: user.id } });
-      if (!doctor) return apiError('Perfil de doctor no encontrado', 404);
+      if (!doctor) throw AppError.notFound('Perfil de doctor no encontrado');
 
       where.doctorPatients = { some: { doctorId: doctor.id } };
     } else if (user.role === ROLES.CLINIC_ADMIN) {
       // Clinic admin sees patients from their clinic
       const clinicAdmin = await db.clinicAdmin.findUnique({ where: { userId: user.id } });
-      if (!clinicAdmin) return apiError('Perfil de administrador no encontrado', 404);
+      if (!clinicAdmin) throw AppError.notFound('Perfil de administrador no encontrado');
 
       where.appointments = { some: { clinicId: clinicAdmin.clinicId } };
     } else if (user.role === ROLES.RECEPTIONIST) {
       // Receptionist sees patients from their clinic
       const receptionist = await db.receptionist.findUnique({ where: { userId: user.id } });
-      if (!receptionist) return apiError('Perfil de recepcionista no encontrado', 404);
+      if (!receptionist) throw AppError.notFound('Perfil de recepcionista no encontrado');
 
       where.appointments = { some: { clinicId: receptionist.clinicId } };
     }
@@ -83,9 +100,16 @@ export async function GET(request: NextRequest) {
       db.patient.count({ where }),
     ]);
 
-    return apiPaginated(patients, page, limit, total);
+    const response = apiPaginated(patients, page, limit, total);
+    
+    // Añadir headers de rate limit
+    const headers = getRateLimitHeaders(remaining, reset);
+    Object.entries(headers).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    return response;
   } catch (error) {
-    console.error('Error listing patients:', error);
-    return apiError('Error al listar pacientes', 500);
+    return handleError(error);
   }
 }

@@ -117,8 +117,8 @@ model Patient {
   dateOfBirth           DateTime?
   gender                String?
   bloodType             String?
-  allergies             String?
-  chronicConditions     String?
+  allergies_legacy      String?
+  chronicConditions_legacy String?
   emergencyContact      String?
   familyGroupId         String?
   insuranceProvider     String?
@@ -138,11 +138,43 @@ model Patient {
   doctorPatients        DoctorPatient[]
   familyMembers         FamilyMember[]
   insurances            Insurance[]
-  orders                Order[]
   user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders                Order[]
   prescriptions         Prescription[]
   refillRequests        RefillRequest[]
   reviews               Review[]
+  invoices              Invoice[]
+  allergies             Allergy[]
+  chronicConditions     ChronicCondition[]
+}
+
+model Allergy {
+  id        Int      @id @default(autoincrement())
+  patientId String
+  name      String
+  severity  String   @default("moderate") // mild, moderate, severe, life_threatening
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([name])
+}
+
+model ChronicCondition {
+  id        Int      @id @default(autoincrement())
+  patientId String
+  name      String
+  diagnosedAt DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
 }
 
 model FamilyMember {
@@ -276,6 +308,10 @@ model InventoryBatch {
   pharmacy      Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
   @@unique([pharmacyId, medicationId, batchNumber])
+  @@index([pharmacyId])
+  @@index([medicationId])
+  @@index([batchNumber])
+  @@index([expiryDate])
 }
 
 model Supplier {
@@ -412,6 +448,12 @@ model Appointment {
   doctor             Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   clinic             Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   invoice            Invoice?
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([clinicId])
+  @@index([status])
+  @@index([date])
 }
 
 model Order {
@@ -443,6 +485,11 @@ model Order {
   patient                Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   items                  OrderItem[]
   returnRequest          ReturnRequest?
+
+  @@index([patientId])
+  @@index([pharmacyId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -475,6 +522,8 @@ model DeliveryPerson {
   isActive             Boolean    @default(true)
   isAvailable          Boolean    @default(false)
   isInternal           Boolean    @default(false)
+  latitude             Float?
+  longitude            Float?
   pharmacyId           String?
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
@@ -496,10 +545,10 @@ model Delivery {
   estimatedArrival    DateTime?
   failedReason        String?
   notes               String?
-  currentLat          Float?
-  currentLng          Float?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
+  currentLat          Float?
+  currentLng          Float?
   deliveryPerson      DeliveryPerson @relation(fields: [deliveryPersonId], references: [id], onDelete: Cascade)
   order               Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
@@ -532,6 +581,10 @@ model Message {
   createdAt  DateTime @default(now())
   sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   chat       Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([senderId])
+  @@index([createdAt])
 }
 
 model Invoice {
@@ -561,6 +614,7 @@ model Invoice {
   clinic          Clinic?         @relation(fields: [clinicId], references: [id])
   order           Order?          @relation(fields: [orderId], references: [id])
   appointment     Appointment?    @relation(fields: [appointmentId], references: [id])
+  patient         Patient         @relation(fields: [patientId], references: [id])
   returnRequest   ReturnRequest[]
 }
 
@@ -671,6 +725,14 @@ model AuditLog {
   user      User?    @relation(fields: [userId], references: [id])
 }
 
+model File {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
 model PaymentTransaction {
   id              String    @id @default(cuid())
   invoiceId       String?
@@ -684,4 +746,12 @@ model PaymentTransaction {
   processedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+model SystemConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  type      String   @default("string") // string, number, boolean, json
+  label     String
+  updatedAt DateTime @updatedAt
 }

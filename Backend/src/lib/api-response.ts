@@ -4,6 +4,8 @@
 
 import { NextResponse } from 'next/server';
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
 interface ApiResponseOptions {
   status?: number;
   meta?: Record<string, unknown>;
@@ -20,7 +22,7 @@ function logApi(status: number, message: string, details?: Record<string, unknow
 }
 
 export function apiSuccess<T>(data: T, options?: ApiResponseOptions & { message?: string }): NextResponse {
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       success: true,
       data,
@@ -29,11 +31,19 @@ export function apiSuccess<T>(data: T, options?: ApiResponseOptions & { message?
     },
     { status: options?.status || 200 }
   );
+
+  // Inyectar CORS manualmente como respaldo
+  response.headers.set('Access-Control-Allow-Origin', FRONTEND_URL);
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  return response;
 }
 
 export function apiError(message: string, status: number = 400, details?: Record<string, unknown>): NextResponse {
   logApi(status, message, details);
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       success: false,
       message: message,
@@ -42,6 +52,11 @@ export function apiError(message: string, status: number = 400, details?: Record
     },
     { status }
   );
+
+  response.headers.set('Access-Control-Allow-Origin', FRONTEND_URL);
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  
+  return response;
 }
 
 export function apiUnauthorized(message: string = 'No autenticado'): NextResponse {

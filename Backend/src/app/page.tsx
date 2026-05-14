@@ -69,7 +69,7 @@ const API_MODULES: ApiModule[] = [
     color: 'bg-purple-500',
     endpoints: [
       { method: 'POST', path: '/api/v1/auth/register', description: 'Registrar nuevo usuario', auth: false, body: '{"email":"","password":"","name":"","phone":"","role":"patient"}' },
-      { method: 'POST', path: '/api/v1/auth/login', description: 'Iniciar sesion', auth: false, body: '{"email":"carlos@email.com","password":"Patient2025!"}' },
+      { method: 'POST', path: '/api/v1/auth/login', description: 'Iniciar sesion', auth: false, body: '{"email":"carlos@oasis.ni","password":"Oasis2025!"}' },
       { method: 'POST', path: '/api/v1/auth/refresh', description: 'Refrescar token', auth: true, body: '{"refreshToken":""}' },
       { method: 'GET', path: '/api/v1/auth/me', description: 'Obtener perfil actual', auth: true },
       { method: 'POST', path: '/api/v1/auth/forgot-password', description: 'Solicitar reset de contrasena', auth: false, body: '{"email":"carlos@email.com"}' },
@@ -336,17 +336,14 @@ const API_MODULES: ApiModule[] = [
 ];
 
 const TEST_ACCOUNTS = [
-  { role: 'Superadmin', email: 'superadmin@oasis.nii', password: 'Oasis2025!', color: 'bg-purple-100 text-purple-800' },
-  { role: 'Admin Clinica', email: 'admin@santamaria.nii', password: 'Clinic2025!', color: 'bg-teal-100 text-teal-800' },
-  { role: 'Recepcionista', email: 'recepcion@santamaria.nii', password: 'Recep2025!', color: 'bg-pink-100 text-pink-800' },
-  { role: 'Doctor', email: 'dr.garcia@santamaria.nii', password: 'Doctor2025!', color: 'bg-blue-100 text-blue-800' },
-  { role: 'Doctora', email: 'dra.martinez@santamaria.nii', password: 'Doctor2025!', color: 'bg-blue-100 text-blue-800' },
-  { role: 'Paciente', email: 'carlos@email.com', password: 'Patient2025!', color: 'bg-green-100 text-green-800' },
-  { role: 'Paciente', email: 'lucia@email.com', password: 'Patient2025!', color: 'bg-green-100 text-green-800' },
-  { role: 'Admin Farmacia', email: 'admin@farmaciacentral.nii', password: 'Pharmacy2025!', color: 'bg-red-100 text-red-800' },
-  { role: 'Staff Farmacia', email: 'vendedor@farmaciacentral.nii', password: 'Staff2025!', color: 'bg-orange-100 text-orange-800' },
-  { role: 'Repartidor', email: 'repartidor1@oasis.nii', password: 'Delivery2025!', color: 'bg-yellow-100 text-yellow-800' },
-  { role: 'Repartidor', email: 'repartidor2@oasis.nii', password: 'Delivery2025!', color: 'bg-yellow-100 text-yellow-800' },
+  { role: 'Superadmin', email: 'superadmin@oasis.ni', password: 'Oasis2025!', color: 'bg-purple-100 text-purple-800' },
+  { role: 'Admin Clinica', email: 'admin.clinica@oasis.ni', password: 'Oasis2025!', color: 'bg-teal-100 text-teal-800' },
+  { role: 'Recepcionista', email: 'recepcion@oasis.ni', password: 'Oasis2025!', color: 'bg-pink-100 text-pink-800' },
+  { role: 'Doctor', email: 'carlos@oasis.ni', password: 'Oasis2025!', color: 'bg-blue-100 text-blue-800' },
+  { role: 'Paciente', email: 'juan@oasis.ni', password: 'Oasis2025!', color: 'bg-green-100 text-green-800' },
+  { role: 'Admin Farmacia', email: 'admin.farmacia@oasis.ni', password: 'Oasis2025!', color: 'bg-red-100 text-red-800' },
+  { role: 'Staff Farmacia', email: 'staff.farmacia@oasis.ni', password: 'Oasis2025!', color: 'bg-orange-100 text-orange-800' },
+  { role: 'Repartidor', email: 'luis@oasis.ni', password: 'Oasis2025!', color: 'bg-yellow-100 text-yellow-800' },
 ];
 
 const DB_SCHEMA: DbTable[] = [
@@ -1201,7 +1198,7 @@ export default function OasisApiDashboard() {
     setResponse(null);
     const start = Date.now();
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -1719,9 +1716,9 @@ export default function OasisApiDashboard() {
                     <div className="p-3 bg-gray-50 rounded-lg border text-xs">
                       <p className="font-medium mb-1">Flujo de Autenticacion:</p>
                       <ol className="text-gray-600 space-y-1 list-decimal list-inside">
-                        <li>POST /api/auth/login -- recibir accessToken + refreshToken</li>
+                        <li>POST /api/v1/auth/login -- recibir accessToken + refreshToken</li>
                         <li>Usar accessToken en header Authorization: Bearer</li>
-                        <li>Al expirar (15min), POST /api/auth/refresh con refreshToken</li>
+                        <li>Al expirar (15min), POST /api/v1/auth/refresh con refreshToken</li>
                       </ol>
                     </div>
                   </div>
@@ -2249,7 +2246,7 @@ export default function OasisApiDashboard() {
                 <CardContent className="space-y-3">
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1 block">URL del Endpoint</label>
-                    <Input placeholder="/api/auth/login" id="test-url" className="font-mono text-sm" />
+                    <Input placeholder="/api/v1/auth/login" id="test-url" className="font-mono text-sm" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1 block">Metodo HTTP</label>
@@ -2266,7 +2263,7 @@ export default function OasisApiDashboard() {
                     <Input value={token} onChange={e => setToken(e.target.value)} placeholder="Bearer token" className="font-mono text-xs" />
                   </div>
                   <Button className="w-full" onClick={() => {
-                    const url = (document.getElementById('test-url') as HTMLInputElement)?.value || '/api/auth/me';
+                    const url = (document.getElementById('test-url') as HTMLInputElement)?.value || '/api/v1/auth/me';
                     const method = (document.getElementById('test-method') as HTMLSelectElement)?.value || 'GET';
                     testEndpoint({ method, path: url, description: '', auth: !!token, body: bodyText || undefined } as Endpoint);
                   }} disabled={loading}>
@@ -2412,7 +2409,7 @@ export default function OasisApiDashboard() {
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                       <p className="text-xs font-bold text-purple-700 mb-1">1. Login</p>
-                      <code className="text-xs font-mono text-purple-900 block">POST /api/auth/login</code>
+                      <code className="text-xs font-mono text-purple-900 block">POST /api/v1/auth/login</code>
                       <p className="text-xs text-purple-600 mt-1">Enviar {`{ email, password }`}. Recibir accessToken (15min) + refreshToken (7 dias).</p>
                     </div>
                     <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -2422,7 +2419,7 @@ export default function OasisApiDashboard() {
                     </div>
                     <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-xs font-bold text-green-700 mb-1">3. Refrescar</p>
-                      <code className="text-xs font-mono text-green-900 block">POST /api/auth/refresh</code>
+                      <code className="text-xs font-mono text-green-900 block">POST /api/v1/auth/refresh</code>
                       <p className="text-xs text-green-600 mt-1">Al expirar el accessToken, enviar refreshToken para obtener uno nuevo.</p>
                     </div>
                   </div>

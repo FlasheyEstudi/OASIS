@@ -19,7 +19,12 @@ export async function GET(
       return apiUnauthorized();
     }
 
-    const doctor = await db.doctor.findUnique({ where: { id } });
+    let doctor = await db.doctor.findUnique({ where: { id } });
+    if (!doctor) {
+      // Fallback: search by userId
+      doctor = await db.doctor.findFirst({ where: { userId: id } });
+    }
+
     if (!doctor) {
       return apiNotFound('Doctor no encontrado');
     }

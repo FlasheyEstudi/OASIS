@@ -1,7 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
 // 🌿 OASIS - PUT/DELETE /api/patient/family-members/[memberId]
-// PUT - Update family member
-// DELETE - Remove family member
 // ═══════════════════════════════════════════════════════════════
 
 import { NextRequest } from 'next/server';
@@ -10,143 +8,113 @@ import { apiSuccess, apiError, apiUnauthorized, apiForbidden, apiNotFound } from
 import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
 import { createAuditLog } from '@/lib/oasis-utils';
 
-type RouteParams = { params: Promise<{ memberId: string }> };
-
-// PUT /api/patient/family-members/[memberId] - Update family member
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ memberId: string }> }
+) {
   try {
     const auth = await getAuthUserFromHeader(request);
     if (!auth) return apiUnauthorized();
 
-    const { user } = auth;
-
-    // Only patients can update their family members
-    if (user.role !== ROLES.PATIENT && user.role !== ROLES.SUPERADMIN) {
-      return apiForbidden('Solo los pacientes pueden actualizar familiares');
-    }
-
     const { memberId } = await params;
+    const body = await request.json();
 
-    // Find patient profile
-    const patient = await db.patient.findUnique({
-      where: { userId: user.id },
-    });
-
-    if (!patient) return apiError('Perfil de paciente no encontrado', 404);
-
-    // Find family member and verify ownership
+    // 1. Verificar existencia del familiar
     const familyMember = await db.familyMember.findUnique({
       where: { id: memberId },
+      include: { patient: true }
     });
 
     if (!familyMember) return apiNotFound('Familiar no encontrado');
 
-    if (familyMember.patientId !== patient.id && user.role !== ROLES.SUPERADMIN) {
-      return apiForbidden('Este familiar no pertenece a tu perfil');
+    // 2. Verificar propiedad (Solo el paciente dueño o superadmin)
+    const isOwner = familyMember.patient.userId === auth.user.id;
+    if (!isOwner && auth.user.role !== ROLES.SUPERADMIN) {
+      return apiForbidden('No tiene permiso para editar este familiar');
     }
 
-    const body = await request.json();
-    const {
-      name,
-      relationship,
-      dateOfBirth,
-      gender,
-      bloodType,
-      allergies,
-      chronicConditions,
-      insuranceProvider,
-      insurancePolicyNumber,
-    } = body;
-
-    const oldValues = { ...familyMember };
-
+    // 3. Actualizar
     const updated = await db.familyMember.update({
       where: { id: memberId },
       data: {
-        ...(name !== undefined && { name }),
-        ...(relationship !== undefined && { relationship }),
-        ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null }),
-        ...(gender !== undefined && { gender }),
-        ...(bloodType !== undefined && { bloodType }),
-        ...(allergies !== undefined && {
-          allergies: allergies ? (typeof allergies === 'string' ? allergies : JSON.stringify(allergies)) : null,
-        }),
-        ...(chronicConditions !== undefined && {
-          chronicConditions: chronicConditions
-            ? (typeof chronicConditions === 'string' ? chronicConditions : JSON.stringify(chronicConditions))
-            : null,
-        }),
-        ...(insuranceProvider !== undefined && { insuranceProvider }),
-        ...(insurancePolicyNumber !== undefined && { insurancePolicyNumber }),
-      },
+        name: body.name,
+        relationship: body.relationship,
+        dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : undefined,
+        gender: body.gender,
+        bloodType: body.bloodType,
+        allergies: body.allergies,
+        chronicConditions: body.chronicConditions,
+        insuranceProvider: body.insuranceProvider,
+        insurancePolicyNumber: body.insurancePolicyNumber,
+      }
     });
 
-    // Audit log
     await createAuditLog({
-      userId: user.id,
+      userId: auth.user.id,
       action: 'update',
       entity: 'FamilyMember',
       entityId: memberId,
-      oldValues: oldValues as unknown as Record<string, unknown>,
-      newValues: updated as unknown as Record<string, unknown>,
+      oldValues: familyMember as any,
+      newValues: updated as any,
     });
 
     return apiSuccess(updated);
   } catch (error) {
     console.error('Error updating family member:', error);
-    return apiError('Error al actualizar familiar', 500);
+    return apiError('Error al actualizar familiar');
   }
 }
 
-// DELETE /api/patient/family-members/[memberId] - Remove family member
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ memberId: string }> }
+) {
   try {
     const auth = await getAuthUserFromHeader(request);
     if (!auth) return apiUnauthorized();
 
-    const { user } = auth;
-
-    // Only patients can delete their family members
-    if (user.role !== ROLES.PATIENT && user.role !== ROLES.SUPERADMIN) {
-      return apiForbidden('Solo los pacientes pueden eliminar familiares');
-    }
-
     const { memberId } = await params;
 
-    // Find patient profile
-    const patient = await db.patient.findUnique({
-      where: { userId: user.id },
-    });
-
-    if (!patient) return apiError('Perfil de paciente no encontrado', 404);
-
-    // Find family member and verify ownership
+    // 1. Verificar existencia
     const familyMember = await db.familyMember.findUnique({
       where: { id: memberId },
+      include: { patient: true }
     });
 
     if (!familyMember) return apiNotFound('Familiar no encontrado');
 
-    if (familyMember.patientId !== patient.id && user.role !== ROLES.SUPERADMIN) {
-      return apiForbidden('Este familiar no pertenece a tu perfil');
+    // 2. Verificar propiedad
+    const isOwner = familyMember.patient.userId === auth.user.id;
+    if (!isOwner && auth.user.role !== ROLES.SUPERADMIN) {
+      return apiForbidden('No tiene permiso para eliminar este familiar');
     }
 
-    await db.familyMember.delete({
-      where: { id: memberId },
+    // 3. Verificar que no tenga citas activas
+    const activeAppointments = await db.appointment.count({
+      where: { 
+        familyMemberId: memberId,
+        status: { in: ['scheduled', 'confirmed', 'in_progress'] }
+      }
     });
 
-    // Audit log
+    if (activeAppointments > 0) {
+      return apiError('No se puede eliminar un familiar con citas activas', 400);
+    }
+
+    // 4. Eliminar
+    await db.familyMember.delete({ where: { id: memberId } });
+
     await createAuditLog({
-      userId: user.id,
+      userId: auth.user.id,
       action: 'delete',
       entity: 'FamilyMember',
       entityId: memberId,
-      oldValues: familyMember as unknown as Record<string, unknown>,
+      oldValues: familyMember as any,
     });
 
-    return apiSuccess({ message: 'Familiar eliminado exitosamente' });
+    return apiSuccess({ message: 'Familiar eliminado correctamente' });
   } catch (error) {
     console.error('Error deleting family member:', error);
-    return apiError('Error al eliminar familiar', 500);
+    return apiError('Error al eliminar familiar');
   }
 }

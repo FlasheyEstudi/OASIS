@@ -172,21 +172,23 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const targetType = searchParams.get('targetType') || undefined;
   const targetId = searchParams.get('targetId') || undefined;
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
+  let page = parseInt(searchParams.get('page') || '1');
+  let limit = parseInt(searchParams.get('limit') || '20');
 
-  if (!targetType || !targetId) {
-    return apiError('targetType y targetId son requeridos');
-  }
-
-  const validTargetTypes = ['doctor', 'clinic', 'pharmacy', 'delivery_person', 'order'];
-  if (!validTargetTypes.includes(targetType)) {
-    return apiError(`targetType inválido. Debe ser: ${validTargetTypes.join(', ')}`);
-  }
+  if (isNaN(page) || page < 1) page = 1;
+  if (isNaN(limit) || limit < 1) limit = 20;
 
   const skip = (page - 1) * limit;
 
-  const where = { targetType, targetId, isActive: true };
+  // Si se envían, filtrar. Si no, traer todo (admin/feed)
+  const where: any = { isActive: true };
+  if (targetType) where.targetType = targetType;
+  if (targetId) where.targetId = targetId;
+
+  const validTargetTypes = ['doctor', 'clinic', 'pharmacy', 'delivery_person', 'order'];
+  if (targetType && !validTargetTypes.includes(targetType)) {
+    return apiError(`targetType inválido. Debe ser: ${validTargetTypes.join(', ')}`);
+  }
 
   const [reviews, total] = await Promise.all([
     db.review.findMany({

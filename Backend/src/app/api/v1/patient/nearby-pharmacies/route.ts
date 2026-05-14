@@ -1,35 +1,42 @@
-// ═══════════════════════════════════════════════════════════════
-// 🌿 OASIS - GET /api/patient/nearby-pharmacies
-// Find pharmacies near a location
-// Include basic inventory count
-// Calculate distance using Haversine formula from oasis-utils
-// ═══════════════════════════════════════════════════════════════
-
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import { apiSuccess, apiUnauthorized, apiForbidden } from '@/lib/api-response';
 import { getAuthUserFromHeader } from '@/lib/auth';
-import { calculateDistance } from '@/lib/oasis-utils';
+import { calculateDistance, safeJsonParse } from '@/lib/oasis-utils';
+import { handleError } from '@/lib/handle-error';
+import { AppError } from '@/lib/errors';
+import logger from '@/lib/logger';
+import { getClientIp, apiLimiter } from '@/lib/rate-limit';
+import { z } from 'zod';
+
+const nearbySchema = z.object({
+  lat: z.string().transform(v => parseFloat(v)),
+  lng: z.string().transform(v => parseFloat(v)),
+  radius: z.string().optional().transform(v => v ? parseFloat(v) : 10),
+  page: z.string().optional().transform(v => v ? parseInt(v) : 1),
+  limit: z.string().optional().transform(v => v ? parseInt(v) : 20),
+  medication_id: z.string().optional(),
+});
 
 export async function GET(request: NextRequest) {
+  const requestId = request.headers.get('X-Request-Id') || 'unknown';
   try {
+    const ip = getClientIp(request);
+    await apiLimiter.limit(ip);
+
+    logger.info({ requestId, endpoint: '/api/v1/patient/nearby-pharmacies' }, 'Searching nearby pharmacies');
+
     const { searchParams } = new URL(request.url);
-
-    const lat = searchParams.get('lat');
-    const lng = searchParams.get('lng');
-    const radius = parseFloat(searchParams.get('radius') || '10'); // km
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const medicationId = searchParams.get('medication_id') || undefined; // Filter by medication availability
-
-    if (!lat || !lng) {
-      return apiError('lat y lng son requeridos', 422);
+    const query = Object.fromEntries(searchParams.entries());
+    
+    const parsed = nearbySchema.safeParse(query);
+    if (!parsed.success) {
+      throw AppError.badRequest('Parámetros de ubicación inválidos', parsed.error.flatten().fieldErrors as any);
     }
 
-    const userLat = parseFloat(lat);
-    const userLng = parseFloat(lng);
+    const { lat: userLat, lng: userLng, radius, page, limit, medication_id: medicationId } = parsed.data;
 
-    // Auth is optional but can enhance results
+    // Auth is optional
     const auth = await getAuthUserFromHeader(request);
 
     // Get all active pharmacies with coordinates
@@ -76,20 +83,10 @@ export async function GET(request: NextRequest) {
           logoUrl: pharmacy.logoUrl,
           latitude: pharmacy.latitude,
           longitude: pharmacy.longitude,
-          distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+          distance: Math.round(distance * 10) / 10,
           activeInventoryCount: pharmacy._count.inventoryBatches,
-          paymentMethods: pharmacy.paymentMethods
-            ? (() => {
-                try { return JSON.parse(pharmacy.paymentMethods); }
-                catch { return null; }
-              })()
-            : null,
-          deliverySettings: pharmacy.deliverySettings
-            ? (() => {
-                try { return JSON.parse(pharmacy.deliverySettings); }
-                catch { return null; }
-              })()
-            : null,
+          paymentMethods: safeJsonParse(pharmacy.paymentMethods, null),
+          deliverySettings: safeJsonParse(pharmacy.deliverySettings, null),
         };
       })
       .filter((p) => p.distance <= radius)
@@ -132,7 +129,6 @@ export async function GET(request: NextRequest) {
         .filter((p) => p.medicationAvailable);
     }
 
-    // Apply pagination
     const total = nearbyPharmacies.length;
     const paginatedPharmacies = nearbyPharmacies.slice(
       (page - 1) * limit,
@@ -141,15 +137,10 @@ export async function GET(request: NextRequest) {
 
     // Update patient location if authenticated
     if (auth?.user.role === 'patient') {
-      const patient = await db.patient.findUnique({
+      await db.patient.update({
         where: { userId: auth.user.id },
-      });
-      if (patient) {
-        await db.patient.update({
-          where: { id: patient.id },
-          data: { latitude: userLat, longitude: userLng },
-        });
-      }
+        data: { latitude: userLat, longitude: userLng },
+      }).catch(err => logger.warn({ err }, 'Could not update patient location'));
     }
 
     return apiSuccess({
@@ -165,7 +156,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error finding nearby pharmacies:', error);
-    return apiError('Error al buscar farmacias cercanas', 500);
+    logger.error({ requestId, error }, 'Error finding nearby pharmacies');
+    return handleError(error);
   }
 }

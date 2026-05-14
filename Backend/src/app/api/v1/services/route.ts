@@ -14,16 +14,15 @@ import { createAuditLog } from '@/lib/oasis-utils';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const clinicId = searchParams.get('clinicId') || undefined;
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
+  let page = parseInt(searchParams.get('page') || '1');
+  let limit = parseInt(searchParams.get('limit') || '20');
 
-  if (!clinicId) {
-    return apiError('clinicId es requerido');
-  }
+  if (isNaN(page) || page < 1) page = 1;
+  if (isNaN(limit) || limit < 1) limit = 20;
 
   const skip = (page - 1) * limit;
-
-  const where = { clinicId, isActive: true };
+  const where: any = { isActive: true };
+  if (clinicId) where.clinicId = clinicId;
 
   const [services, total] = await Promise.all([
     db.service.findMany({

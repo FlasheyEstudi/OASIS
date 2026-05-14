@@ -11,7 +11,9 @@ import { createAuditLog } from '@/lib/oasis-utils';
 // GET /api/clinics - Listar clínicas
 export async function GET(request: NextRequest) {
   const auth = await getAuthUserFromHeader(request);
-  if (!auth) return apiUnauthorized();
+  
+  // Si es público, forzar isActive: true y no aplicar filtros de clinic_admin
+  const isPublic = !auth;
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1');
@@ -26,12 +28,16 @@ export async function GET(request: NextRequest) {
   // superadmin ve todas, clinic_admin ve solo su clínica
   const where: Record<string, unknown> = {};
 
-  if (auth.user.role === ROLES.CLINIC_ADMIN) {
+  if (auth && auth.user.role === ROLES.CLINIC_ADMIN) {
     const clinicAdmin = await db.clinicAdmin.findUnique({
       where: { userId: auth.user.id },
     });
     if (!clinicAdmin) return apiSuccess([]);
     where.id = clinicAdmin.clinicId;
+  }
+
+  if (isPublic) {
+    where.isActive = true;
   }
 
   if (search) {

@@ -37,42 +37,45 @@ export async function GET(
 
   if (!canRead) return apiForbidden('No autorizado');
 
-  const pharmacy = await db.pharmacy.findUnique({ where: { id } });
-  if (!pharmacy) return apiNotFound('Farmacia no encontrada');
-
-  const staff = await db.pharmacyStaff.findMany({
-    where: { pharmacyId: id },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          avatarUrl: true,
-          isActive: true,
+  // Obtener todo en una sola tanda de consultas optimizadas
+  const [staff, admins] = await Promise.all([
+    db.pharmacyStaff.findMany({
+      where: { pharmacyId: id, isActive: true },
+      select: {
+        id: true,
+        role: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            isActive: true,
+          },
         },
       },
-    },
-  });
-
-  // Also include pharmacy admins
-  const admins = await db.pharmacyAdmin.findMany({
-    where: { pharmacyId: id },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          avatarUrl: true,
-          isActive: true,
+      orderBy: { createdAt: 'desc' },
+    }),
+    db.pharmacyAdmin.findMany({
+      where: { pharmacyId: id, isActive: true },
+      select: {
+        id: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            isActive: true,
+          },
         },
       },
-    },
-  });
+    }),
+  ]);
 
   return apiSuccess({
     admins: admins.map((a) => ({ ...a, role: 'pharmacy_admin' })),

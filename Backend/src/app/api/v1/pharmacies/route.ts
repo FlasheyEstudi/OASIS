@@ -11,7 +11,6 @@ import { createAuditLog } from '@/lib/oasis-utils';
 // GET /api/pharmacies - List pharmacies
 export async function GET(request: NextRequest) {
   const auth = await getAuthUserFromHeader(request);
-  if (!auth) return apiUnauthorized();
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1');
@@ -34,24 +33,30 @@ export async function GET(request: NextRequest) {
   }
   if (city) where.city = { contains: city };
   if (department) where.department = { contains: department };
+  
   if (isActive !== null && isActive !== undefined && isActive !== '') {
     where.isActive = isActive === 'true';
+  } else if (!auth) {
+    // Si no está autenticado, solo ver activas
+    where.isActive = true;
   }
 
   // Non-superadmin users only see their own pharmacy
-  if (auth.user.role === ROLES.PHARMACY_ADMIN) {
-    const admin = await db.pharmacyAdmin.findFirst({
-      where: { userId: auth.user.id },
-    });
-    if (admin) {
-      where.id = admin.pharmacyId;
-    }
-  } else if (auth.user.role === ROLES.PHARMACY_STAFF) {
-    const staff = await db.pharmacyStaff.findFirst({
-      where: { userId: auth.user.id },
-    });
-    if (staff) {
-      where.id = staff.pharmacyId;
+  if (auth) {
+    if (auth.user.role === ROLES.PHARMACY_ADMIN) {
+      const admin = await db.pharmacyAdmin.findFirst({
+        where: { userId: auth.user.id },
+      });
+      if (admin) {
+        where.id = admin.pharmacyId;
+      }
+    } else if (auth.user.role === ROLES.PHARMACY_STAFF) {
+      const staff = await db.pharmacyStaff.findFirst({
+        where: { userId: auth.user.id },
+      });
+      if (staff) {
+        where.id = staff.pharmacyId;
+      }
     }
   }
 

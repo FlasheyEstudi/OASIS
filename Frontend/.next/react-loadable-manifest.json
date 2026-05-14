@@ -1,0 +1,16 @@
+{
+  "app/[slug]/page.tsx -> @/componentes/MapaAura": {
+    "id": "app/[slug]/page.tsx -> @/componentes/MapaAura",
+    "files": [
+      "static/css/_app-pages-browser_src_componentes_MapaAura_tsx.css",
+      "static/chunks/_app-pages-browser_src_componentes_MapaAura_tsx.js"
+    ]
+  },
+  "modulos/dashboard/paciente/Inicio.tsx -> @/componentes/MapaAura": {
+    "id": "modulos/dashboard/paciente/Inicio.tsx -> @/componentes/MapaAura",
+    "files": [
+      "static/css/_app-pages-browser_src_componentes_MapaAura_tsx.css",
+      "static/chunks/_app-pages-browser_src_componentes_MapaAura_tsx.js"
+    ]
+  }
+}

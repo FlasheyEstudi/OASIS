@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { NextRequest } from 'next/server';
-import { GET as nearbyHandler } from '@/app/api/patient/nearby-pharmacies/route';
+import { GET as nearbyHandler } from '@/app/api/v1/patient/nearby-pharmacies/route';
 
 /**
  * Proxy to nearby-pharmacies with specific parameter mapping if needed.

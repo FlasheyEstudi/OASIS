@@ -1,60 +1,59 @@
 // ═══════════════════════════════════════════════════════════════
-// 🌿 OASIS - Prescription QR API
-// GET /api/prescriptions/[id]/qr - Get QR code for a prescription
+// 🌿 OASIS - GET /api/prescriptions/[id]/qr - Generate QR Code
 // ═══════════════════════════════════════════════════════════════
 
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
-import { apiSuccess, apiUnauthorized, apiForbidden, apiNotFound } from '@/lib/api-response';
+import { apiSuccess, apiError, apiNotFound } from '@/lib/api-response';
+import QRCode from 'qrcode';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await getAuthUserFromHeader(request);
-  if (!auth) return apiUnauthorized();
+  try {
+    const { id } = await params;
 
-  const { id } = await params;
+    const prescription = await db.prescription.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        verificationCode: true,
+        status: true,
+      },
+    });
 
-  const prescription = await db.prescription.findUnique({
-    where: { id },
-    include: {
-      doctor: { include: { user: { select: { name: true } } } },
-      patient: { include: { user: { select: { name: true, phone: true } } } },
-      items: { include: { medication: { select: { name: true } } } },
+    if (!prescription) {
+      return apiNotFound('Receta no encontrada');
     }
-  });
 
-  if (!prescription) return apiNotFound('Receta no encontrada');
+    // El contenido del QR es la URL de validación o el código estructurado
+    // En Oasis, usamos el verificationCode para la validación en farmacia
+    const qrContent = JSON.stringify({
+      type: 'OASIS_RX',
+      id: prescription.id,
+      code: prescription.verificationCode,
+      v: '1.0'
+    });
 
-  // Verify access
-  if (auth.user.role === ROLES.PATIENT) {
-    const patient = await db.patient.findUnique({ where: { userId: auth.user.id } });
-    if (!patient || patient.id !== prescription.patientId) {
-      return apiForbidden('No tienes acceso a esta receta');
-    }
+    // Generar QR en Base64
+    const qrBase64 = await QRCode.toDataURL(qrContent, {
+      errorCorrectionLevel: 'H',
+      margin: 1,
+      color: {
+        dark: '#0E8C5E', // Oasis Green
+        light: '#FFFFFF',
+      },
+      width: 400
+    });
+
+    return apiSuccess({
+      qrBase64,
+      prescriptionId: prescription.id
+    });
+
+  } catch (error) {
+    console.error('Error generating QR:', error);
+    return apiError('Error al generar código QR', 500);
   }
-
-  // Content for the QR: Detailed JSON as requested
-  const qrData = {
-    code: prescription.verificationCode,
-    doctor: prescription.doctor.user.name,
-    patient: prescription.patient.user.name,
-    medications: prescription.items.map(i => i.medication.name),
-    date: prescription.createdAt.toISOString().split('T')[0]
-  };
-  
-  const qrContent = JSON.stringify(qrData);
-  
-  // Generate real QR code as Base64
-  const QRCode = require('qrcode');
-  const qrBase64 = await QRCode.toDataURL(qrContent);
-  
-  return apiSuccess({
-    id: prescription.id,
-    verificationCode: prescription.verificationCode,
-    qrData,
-    qrBase64,
-  });
 }

@@ -1,6 +1,23 @@
 // ═══════════════════════════════════════════════════════════════
-// 🌿 OASIS - Utilidades de Auditoría
+// 🌿 OASIS - Utilidades Compartidas
 // ═══════════════════════════════════════════════════════════════
+
+export function safeJsonParse<T>(
+  input: string | null | undefined,
+  fallback: T
+): T {
+  if (!input) return fallback;
+  try {
+    const parsed = JSON.parse(input);
+    return parsed as T;
+  } catch (error) {
+    console.warn(
+      `[safeJsonParse] JSON corrupto detectado, ` +
+      `usando fallback. Input: "${String(input).substring(0, 80)}..."`
+    );
+    return fallback;
+  }
+}
 
 import { db } from '@/lib/db';
 
@@ -14,6 +31,7 @@ interface AuditLogParams {
   newValues?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
+  details?: Record<string, unknown>;
 }
 
 export async function createAuditLog(params: AuditLogParams) {
@@ -25,26 +43,25 @@ export async function createAuditLog(params: AuditLogParams) {
       entity: params.entity,
       entityId: params.entityId,
       oldValues: params.oldValues ? JSON.stringify(params.oldValues) : null,
-      newValues: params.newValues ? JSON.stringify(params.newValues) : null,
+      newValues: params.newValues ? JSON.stringify(params.newValues) : (params.details ? JSON.stringify(params.details) : null),
       ipAddress: params.ipAddress,
       userAgent: params.userAgent,
     },
   });
 }
 
-// Utilidad para hash de firma digital (simulada para MVP)
+import crypto from 'node:crypto';
+
+// Utilidad para hash de firma digital (Criptográfica real)
 export function generateSignatureHash(data: string): string {
-  // En producción, usar crypto con certificado real
-  const encoder = new TextEncoder();
-  const buffer = encoder.encode(data);
-  // Simple hash para MVP
-  let hash = 0;
-  for (let i = 0; i < buffer.length; i++) {
-    const char = buffer[i];
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return `SIG-${Math.abs(hash).toString(16).toUpperCase()}-${Date.now()}`;
+  // En producción, esto usaría la llave privada del doctor/clínica
+  // Para este nivel de auditoría, implementamos un HMAC robusto que garantiza integridad
+  const secret = process.env.SIGNATURE_SECRET || 'oasis-health-mision-critica-2026';
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(data);
+  const hash = hmac.digest('hex').toUpperCase();
+  
+  return `SIG-${hash.substring(0, 12)}-${Date.now()}`;
 }
 
 // Calcular distancia entre dos coordenadas (Haversine)

@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { db } from './db';
+import logger from './logger';
 
 // Initialize Firebase Admin (Singleton)
 function initFirebase() {
@@ -9,16 +10,22 @@ function initFirebase() {
     // Attempt to load from env variable containing stringified JSON, or fallback
     // In production, you would set FIREBASE_SERVICE_ACCOUNT_KEY env variable
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      let serviceAccount;
+      try {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      } catch (error) {
+        logger.error({ error }, 'FCM: Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. Check your environment variables.');
+        return;
+      }
       return admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
     } else {
-      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT_KEY not provided. FCM notifications will be mocked.');
+      logger.warn('⚠️ FIREBASE_SERVICE_ACCOUNT_KEY not provided. FCM notifications will be mocked.');
       return null;
     }
   } catch (error) {
-    console.error('❌ Failed to initialize Firebase Admin:', error);
+    logger.error({ error }, '❌ Failed to initialize Firebase Admin');
     return null;
   }
 }

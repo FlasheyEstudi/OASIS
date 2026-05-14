@@ -26,7 +26,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await getAuthUserFromHeader(request);
-  if (!auth) return apiUnauthorized();
+  // Permitir acceso público
 
   const { id } = await params;
 

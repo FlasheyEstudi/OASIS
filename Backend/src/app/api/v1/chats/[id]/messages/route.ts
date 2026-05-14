@@ -77,8 +77,20 @@ export async function GET(
 
   const messages = await db.message.findMany({
     where,
-    include: {
-      sender: { select: { id: true, name: true, avatarUrl: true, role: true } },
+    select: {
+      id: true,
+      message: true,
+      attachment: true,
+      createdAt: true,
+      senderId: true,
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          avatarUrl: true,
+          role: true,
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: limit,

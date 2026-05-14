@@ -1,38 +1,61 @@
-import type { Metadata } from "next";
-import { Inter, Nunito } from "next/font/google";
-import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
+import type { Metadata, Viewport } from "next";
+import { Cormorant_Garamond, DM_Sans, JetBrains_Mono } from "next/font/google";
+import React from "react";
+import "../estilos/globals.css";
+import { Proveedores } from "./proveedores";
+import PreloaderManager from "@/componentes/layout/PreloaderManager";
+import PageTransition from "@/componentes/ui/PageTransition";
+import OfflineBanner from "@/componentes/layout/OfflineBanner";
 
-const inter = Inter({
-  variable: "--font-inter",
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
+  variable: "--font-display",
+  display: "swap",
 });
 
-const nunito = Nunito({
-  variable: "--font-nunito",
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-body",
+  display: "swap",
+});
+
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('http://localhost:3000'),
-  title: "OASIS - Tu Base de Salud",
-  description: "Oasis conecta tu receta médica con la farmacia más cercana. Salud digital para Nicaragua.",
-  keywords: ["OASIS", "salud", "Nicaragua", "farmacia", "clínica", "medicina", "delivery"],
-  icons: {
-    icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/oasis-logo.png", type: "image/png", sizes: "1024x1024" },
-    ],
-    apple: "/oasis-logo.png",
+  title: {
+    default: "Oasis Aura — Salud de Próxima Generación",
+    template: "%s | Oasis Aura"
   },
+  description: "Experiencia de salud digital premium, cálida y orgánica. Citas médicas, farmacia inteligente y seguimiento en tiempo real.",
   openGraph: {
-    title: "OASIS - Tu Base de Salud",
-    description: "Salud digital para Nicaragua. Clínicas, farmacias y pacientes conectados.",
-    images: ["/oasis-logo.png"],
+    title: "Oasis Aura — Tu Oasis de Salud",
+    description: "Cuidado médico con estética Apple y tecnología de vanguardia.",
+    type: "website",
+    locale: "es_NI",
+    siteName: "Oasis Aura",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#080A08",
+};
+
+import ThemeProvider from "@/componentes/layout/ThemeProvider";
+import NotificationManager from "@/componentes/layout/NotificationManager";
+import OasisBackground from "@/componentes/ui/OasisBackground";
 
 export default function RootLayout({
   children,
@@ -40,23 +63,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/oasis-logo.png" />
-      </head>
-      <body className={`${inter.variable} ${nunito.variable} antialiased bg-white text-[#4A4A4A]`}>
-        <script dangerouslySetInnerHTML={{ __html: `
-          window.onerror = function(msg, url, line, col, error) {
-            alert("OASIS Diagnostic Error: " + msg + "\\nAt: " + line + ":" + col);
-            return false;
-          };
-          window.onunhandledrejection = function(event) {
-            alert("OASIS Promise Error: " + event.reason);
-          };
-        `}} />
-        {children}
-        <Toaster position="top-center" />
+    <html 
+      lang="es" 
+      className={`${cormorant.variable} ${dmSans.variable} ${jetbrains.variable}`} 
+      suppressHydrationWarning
+    >
+      <body className="font-body bg-bg text-text antialiased overflow-x-hidden selection:bg-accent selection:text-white">
+        <ThemeProvider>
+          <OasisBackground />
+          <NotificationManager />
+          <Proveedores>
+            <a href="#main-content" className="sr-only focus:not-sr-only fixed top-4 left-4 z-[99999] bg-accent text-white px-4 py-2 rounded-full font-bold">
+              Saltar al contenido
+            </a>
+            <OfflineBanner />
+            <PreloaderManager>
+              <PageTransition>
+                <main id="main-content">
+                  {children}
+                </main>
+              </PageTransition>
+            </PreloaderManager>
+          </Proveedores>
+        </ThemeProvider>
       </body>
     </html>
   );

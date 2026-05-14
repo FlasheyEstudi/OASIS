@@ -8,6 +8,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { apiSuccess, apiError, apiUnauthorized, apiForbidden, apiNotFound } from '@/lib/api-response';
 import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
+import { safeJsonParse } from '@/lib/oasis-utils';
+import { handleError } from '@/lib/handle-error';
 
 export async function GET(
   request: NextRequest,
@@ -49,10 +51,16 @@ export async function GET(
       }
     }
 
+    // Contextual filtering for patients
+    const familyMemberId = user.familyMemberId || null;
+    const historyWhere = user.role === ROLES.PATIENT 
+      ? { patientId: id, familyMemberId } 
+      : { patientId: id };
+
     // Fetch all clinical history data in parallel
     const [prescriptions, appointments, refillRequests] = await Promise.all([
       db.prescription.findMany({
-        where: { patientId: id },
+        where: historyWhere,
         include: {
           doctor: {
             include: {
@@ -70,7 +78,7 @@ export async function GET(
         orderBy: { date: 'desc' },
       }),
       db.appointment.findMany({
-        where: { patientId: id },
+        where: historyWhere,
         include: {
           doctor: {
             include: {
@@ -83,7 +91,7 @@ export async function GET(
         orderBy: { date: 'desc' },
       }),
       db.refillRequest.findMany({
-        where: { patientId: id },
+        where: { patientId: id }, // Refills are usually handled by the primary patient
         include: {
           prescription: {
             include: {
@@ -102,24 +110,15 @@ export async function GET(
     ]);
 
     // Parse JSON fields safely
-    const parseJsonField = (field: string | null | undefined): unknown[] => {
-      if (!field) return [];
-      try {
-        return JSON.parse(field);
-      } catch {
-        return [];
-      }
-    };
-
     const clinicalHistory = {
       patient: {
         id: patient.id,
         dateOfBirth: patient.dateOfBirth,
         gender: patient.gender,
         bloodType: patient.bloodType,
-        allergies: parseJsonField(patient.allergies),
-        chronicConditions: parseJsonField(patient.chronicConditions),
-        emergencyContact: patient.emergencyContact ? JSON.parse(patient.emergencyContact) : null,
+        allergies: safeJsonParse<string[]>(patient.allergies, []),
+        chronicConditions: safeJsonParse<string[]>(patient.chronicConditions, []),
+        emergencyContact: safeJsonParse<Record<string, unknown> | null>(patient.emergencyContact, null),
       },
       prescriptions,
       appointments,
@@ -138,7 +137,6 @@ export async function GET(
 
     return apiSuccess(clinicalHistory);
   } catch (error) {
-    console.error('Error getting patient history:', error);
-    return apiError('Error al obtener historial clínico', 500);
+    return handleError(error);
   }
 }

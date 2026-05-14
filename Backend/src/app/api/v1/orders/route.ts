@@ -7,10 +7,11 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
-import { apiSuccess, apiError, apiUnauthorized, apiPaginated } from '@/lib/api-response';
+import { apiSuccess, apiError, apiUnauthorized, apiPaginated, apiValidation } from '@/lib/api-response';
 import { calculateLoyaltyPoints, getLoyaltyLevel, generateInvoiceNumber, createAuditLog } from '@/lib/oasis-utils';
-
-const DELIVERY_FEE = 50; // NIO flat fee for MVP
+import { paginationSchema } from '@/lib/validations/common';
+import { createOrderSchema } from '@/lib/validations/orders';
+import { getConfigNumber } from '@/lib/config';
 
 // ─── GET /api/orders ────────────────────────────────────────
 export async function GET(request: NextRequest) {
@@ -18,11 +19,18 @@ export async function GET(request: NextRequest) {
   if (!auth) return apiUnauthorized();
 
   const { searchParams } = new URL(request.url);
+  
+  // ── Validate Query Params with Zod ──
+  const queryParams = Object.fromEntries(searchParams.entries());
+  const parsedQuery = paginationSchema.safeParse(queryParams);
+  if (!parsedQuery.success) {
+    return apiValidation('Parámetros de búsqueda inválidos', parsedQuery.error.flatten().fieldErrors as any);
+  }
+
+  const { page, limit } = parsedQuery.data;
+  const status = searchParams.get('status');
   const patientId = searchParams.get('patientId');
   const pharmacyId = searchParams.get('pharmacyId');
-  const status = searchParams.get('status');
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
 
   const where: Record<string, unknown> = {};
 
@@ -83,6 +91,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
+  
+  // ── Validate with Zod ──
+  const parsed = createOrderSchema.safeParse(body);
+  if (!parsed.success) {
+    return apiValidation('Datos de orden inválidos', parsed.error.flatten().fieldErrors as any);
+  }
+
   const {
     patientId: bodyPatientId,
     pharmacyId,
@@ -220,7 +235,8 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Step 3: Calculate totals ──
-  const deliveryFee = deliveryType === 'delivery' ? DELIVERY_FEE : 0;
+  const feeBase = await getConfigNumber('delivery_fee', 50);
+  const deliveryFee = deliveryType === 'delivery' ? feeBase : 0;
   const totalAmount = subtotal + deliveryFee;
 
   // ── Step 4-8: Create order in transaction ──

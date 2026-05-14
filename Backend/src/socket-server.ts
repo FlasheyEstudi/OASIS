@@ -6,8 +6,9 @@ const prisma = new PrismaClient();
 const httpServer = createServer();
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Adjust for production
-    methods: ["GET", "POST"]
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    methods: ["GET", "POST"],
+    credentials: true
   },
   path: "/api/socket"
 });

@@ -15,7 +15,7 @@ interface RouteParams {
 // GET /api/clinics/[id] - Obtener detalles de clínica
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const auth = await getAuthUserFromHeader(request);
-  if (!auth) return apiUnauthorized();
+  // Permitir acceso público
 
   const { id } = await params;
 
@@ -38,8 +38,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   if (!clinic) return apiNotFound('Clínica no encontrada');
 
-  // clinic_admin solo puede ver su propia clínica
-  if (auth.user.role === ROLES.CLINIC_ADMIN) {
+  // clinic_admin solo puede ver su propia clínica (si está autenticado)
+  if (auth && auth.user.role === ROLES.CLINIC_ADMIN) {
     const clinicAdmin = await db.clinicAdmin.findUnique({
       where: { userId: auth.user.id },
     });

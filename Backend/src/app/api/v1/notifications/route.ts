@@ -4,8 +4,8 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { apiSuccess, apiError, apiUnauthorized } from '@/lib/api-response';
-import { getAuthUserFromHeader } from '@/lib/auth';
+import { apiSuccess, apiError, apiUnauthorized, apiForbidden } from '@/lib/api-response';
+import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthUserFromHeader(request);
@@ -60,5 +60,37 @@ export async function PATCH(request: NextRequest) {
     return apiError('ID de notificación requerido');
   } catch (error) {
     return apiError('Error al actualizar notificación');
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await getAuthUserFromHeader(request);
+  if (!auth) return apiUnauthorized();
+
+  // Solo superadmins pueden crear notificaciones arbitrarias por API
+  // El sistema las crea internamente llamando a db.notification.create
+  if (auth.user.role !== 'superadmin') {
+    return apiForbidden('No tiene permisos para crear notificaciones');
+  }
+
+  try {
+    const { userId, title, message, type } = await request.json();
+    if (!userId || !title || !message) {
+      return apiError('userId, title y message son requeridos');
+    }
+
+    const notification = await db.notification.create({
+      data: {
+        userId,
+        title,
+        message,
+        type: type || 'system',
+        isRead: false
+      }
+    });
+
+    return apiSuccess(notification, { status: 201 });
+  } catch (error) {
+    return apiError('Error al crear notificación');
   }
 }

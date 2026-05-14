@@ -4,9 +4,11 @@
 
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { apiSuccess, apiError, apiUnauthorized, apiForbidden, apiNotFound } from '@/lib/api-response';
+import { apiSuccess } from '@/lib/api-response';
 import { getAuthUserFromHeader, ROLES } from '@/lib/auth';
-import { createAuditLog } from '@/lib/oasis-utils';
+import { createAuditLog, safeJsonParse } from '@/lib/oasis-utils';
+import { AppError } from '@/lib/errors';
+import { handleError } from '@/lib/handle-error';
 
 export async function GET(
   request: NextRequest,
@@ -28,17 +30,10 @@ export async function GET(
     });
 
     if (!doctor) {
-      return apiNotFound('Doctor no encontrado');
+      throw AppError.notFound('Doctor no encontrado');
     }
 
-    let schedule = null;
-    if (doctor.schedule) {
-      try {
-        schedule = JSON.parse(doctor.schedule);
-      } catch {
-        schedule = doctor.schedule;
-      }
-    }
+    const schedule = safeJsonParse(doctor.schedule, null);
 
     return apiSuccess({
       doctorId: doctor.id,
@@ -47,8 +42,7 @@ export async function GET(
       schedule,
     });
   } catch (error) {
-    console.error('Error getting doctor schedule:', error);
-    return apiError('Error al obtener horario del doctor', 500);
+    return handleError(error);
   }
 }
 
@@ -61,12 +55,12 @@ export async function PUT(
     const auth = await getAuthUserFromHeader(request);
 
     if (!auth) {
-      return apiUnauthorized();
+      throw AppError.unauthorized();
     }
 
     const doctor = await db.doctor.findUnique({ where: { id } });
     if (!doctor) {
-      return apiNotFound('Doctor no encontrado');
+      throw AppError.notFound('Doctor no encontrado');
     }
 
     // Only the doctor themselves or superadmin can update schedule
@@ -74,24 +68,23 @@ export async function PUT(
     const isSuperadmin = auth.user.role === ROLES.SUPERADMIN;
 
     if (!isOwnProfile && !isSuperadmin) {
-      return apiForbidden('Solo el doctor o un superadmin puede actualizar el horario');
+      throw AppError.forbidden('Solo el doctor o un superadmin puede actualizar el horario');
     }
 
     const body = await request.json();
     const { schedule } = body;
 
     if (!schedule) {
-      return apiError('Horario es requerido', 422);
+      throw AppError.badRequest('Horario es requerido');
     }
 
     // Validate schedule structure
     const scheduleStr = typeof schedule === 'string' ? schedule : JSON.stringify(schedule);
 
-    // Try to parse to validate it's valid JSON
-    try {
-      JSON.parse(scheduleStr);
-    } catch {
-      return apiError('El horario debe ser un JSON válido', 422);
+    // Validate it's valid JSON using safeJsonParse
+    const isValidJson = safeJsonParse(scheduleStr, null) !== null;
+    if (!isValidJson && scheduleStr !== 'null') {
+      throw AppError.badRequest('El horario debe ser un JSON válido');
     }
 
     const oldSchedule = doctor.schedule;
@@ -105,12 +98,7 @@ export async function PUT(
       },
     });
 
-    let parsedSchedule = null;
-    try {
-      parsedSchedule = JSON.parse(updatedDoctor.schedule!);
-    } catch {
-      parsedSchedule = updatedDoctor.schedule;
-    }
+    const parsedSchedule = safeJsonParse(updatedDoctor.schedule, null);
 
     await createAuditLog({
       userId: auth.user.id,
@@ -127,7 +115,6 @@ export async function PUT(
       schedule: parsedSchedule,
     });
   } catch (error) {
-    console.error('Error updating doctor schedule:', error);
-    return apiError('Error al actualizar horario del doctor', 500);
+    return handleError(error);
   }
 }

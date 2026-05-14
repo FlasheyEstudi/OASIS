@@ -5,16 +5,34 @@
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { db } from '@/lib/db';
+import logger from '@/lib/logger';
+import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'oasis-secret-key-change-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'oasis-refresh-secret-change-in-production';
-const ACCESS_TOKEN_EXPIRY = '15m';
+
+export async function invalidateAllSessions(userId: string) {
+  await db.user.update({
+    where: { id: userId },
+    data: { refreshToken: null },
+  });
+  logger.info({ userId }, 'All sessions invalidated for user');
+}
+
+logger.info({
+  secret: JWT_SECRET.substring(0, 5) + '...',
+  refresh: JWT_REFRESH_SECRET.substring(0, 5) + '...',
+  env: process.env.JWT_SECRET ? 'FROM_ENV' : 'DEFAULT'
+}, '[Auth] JWT Secrets loaded');
+
+const ACCESS_TOKEN_EXPIRY = '2h';
 const REFRESH_TOKEN_EXPIRY = '7d';
 
 export interface JWTPayload {
   userId: string;
   email: string;
   role: string;
+  familyMemberId?: string;
 }
 
 export function generateAccessToken(payload: JWTPayload): string {
@@ -164,14 +182,26 @@ export async function getAuthUserFromHeader(request: Request): Promise<{
     const payload = verifyAccessToken(token);
     if (!payload) return null;
 
+    const familyMemberId = request.headers.get('X-Family-Member-ID') || undefined;
+
     const dbUser = await db.user.findUnique({
       where: { id: payload.userId },
+      include: { patient: { include: { familyMembers: true } } },
     });
 
     if (!dbUser || !dbUser.isActive) return null;
 
+    // Security check: if familyMemberId is provided, verify it belongs to this patient
+    if (familyMemberId && dbUser.role === ROLES.PATIENT && dbUser.patient) {
+      const isOwner = dbUser.patient.familyMembers.some(fm => fm.id === familyMemberId);
+      if (!isOwner) {
+        console.warn(`[Security] User ${payload.userId} tried to access family member ${familyMemberId} without permission.`);
+        return null;
+      }
+    }
+
     return {
-      user: { ...payload, id: payload.userId },
+      user: { ...payload, id: payload.userId, familyMemberId },
       dbUser,
     };
   } catch {
